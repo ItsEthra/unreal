@@ -4,6 +4,12 @@ pub mod presets {
     pub use super::default::*;
 }
 
+pub trait OfFName {
+    const SIZE: usize;
+    // Field: u32
+    const NUMBER: usize;
+}
+
 pub trait OfFNameEntry {
     // Field: FNameEntryHeader
     const HEADER: usize;
@@ -73,6 +79,7 @@ pub trait OfFProperty {
 
 pub trait Offsets {
     type FNameEntry: OfFNameEntry;
+    type FName: OfFName;
 
     type UObject: OfUObject;
     type UStruct: OfUStruct;
@@ -105,6 +112,7 @@ macro_rules! offset_preset {
     (@proppass PropsSize $value:expr) => { const PROPS_SIZE: usize = $value; };
     (@proppass Outer $value:expr) => { const OUTER: usize = $value; };
     (@proppass Index $value:expr) => { const INDEX: usize = $value; };
+    (@proppass Number $value:expr) => { const NUMBER: usize = $value; };
 
     (@classpass $target:ident ; ) => { };
     (@classpass $target:ident ; $group:ident => { $($prop:ident = $value:expr);* $(;)? } $($t:tt)* ) => {
