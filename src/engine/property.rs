@@ -58,5 +58,3 @@ bitflags::bitflags! {
 }
 
 pub struct FProperty<O: Offsets>(PhantomData<O>);
-
-pub struct UProperty<O: Offsets>(PhantomData<O>);

@@ -1,4 +1,4 @@
-use crate::offsets::{OfFNameEntryHeader, Offsets};
+use crate::offsets::{OfFNameEntry, Offsets};
 use std::marker::PhantomData;
 
 #[repr(C)]
@@ -15,7 +15,7 @@ pub struct FNameEntryHeader<O: Offsets> {
 impl<O: Offsets> FNameEntryHeader<O> {
     #[inline]
     pub const fn is_wide(&self) -> bool {
-        self.value & 1 << O::NameEntryHeader::WIDE_BIT != 0
+        self.value & 1 << O::NameEntry::WIDE_BIT != 0
     }
 
     #[inline]
@@ -25,7 +25,7 @@ impl<O: Offsets> FNameEntryHeader<O> {
 
     #[inline]
     pub const fn len(&self) -> usize {
-        (self.value >> O::NameEntryHeader::LEN_BIT) as usize
+        (self.value >> O::NameEntry::LEN_BIT) as usize
     }
 
     #[inline]
