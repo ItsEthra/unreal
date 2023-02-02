@@ -45,5 +45,8 @@ offset_preset! {
             Name = 0x18;
             Outer = 0x20;
         }
+        FUObjectItem => {
+            Size = 0x28;
+        }
     }
 }

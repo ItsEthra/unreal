@@ -77,9 +77,14 @@ pub trait OfFProperty {
     const SIZE: usize;
 }
 
+pub trait OfFUObjectItem {
+    const SIZE: usize;
+}
+
 pub trait Offsets {
     type FNameEntry: OfFNameEntry;
     type FName: OfFName;
+    type FUObjectItem: OfFUObjectItem;
 
     type UObject: OfUObject;
     type UStruct: OfUStruct;
