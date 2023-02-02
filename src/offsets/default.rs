@@ -1,7 +1,7 @@
 use crate::offset_preset;
 
 offset_preset! {
-    Default => {
+    pub Default => {
         FNameEntry => {
             Header = 0;
             WideBit = 0;

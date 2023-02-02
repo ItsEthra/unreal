@@ -15,7 +15,7 @@ pub struct FNameEntryHeader<O: Offsets> {
 impl<O: Offsets> FNameEntryHeader<O> {
     #[inline]
     pub const fn is_wide(&self) -> bool {
-        self.value & 1 << O::NameEntry::WIDE_BIT != 0
+        self.value & 1 << O::FNameEntry::WIDE_BIT != 0
     }
 
     #[inline]
@@ -25,7 +25,7 @@ impl<O: Offsets> FNameEntryHeader<O> {
 
     #[inline]
     pub const fn len(&self) -> usize {
-        (self.value >> O::NameEntry::LEN_BIT) as usize
+        (self.value >> O::FNameEntry::LEN_BIT) as usize
     }
 
     #[inline]
@@ -53,7 +53,9 @@ impl<O: Offsets> From<FNameEntryHeader<O>> for u16 {
 
 #[test]
 fn test_fname_entry_header() {
-    // let a: FNameEntryHeader = 0b0000000101_00000_1.into();
-    // assert_eq!(a.len(), 5);
-    // assert!(a.is_wide());
+    use crate::offsets::presets::Default;
+
+    let a: FNameEntryHeader<Default> = 0b0000000101_00000_1.into();
+    assert_eq!(a.len(), 5);
+    assert!(a.is_wide());
 }
