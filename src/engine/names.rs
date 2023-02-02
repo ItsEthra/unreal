@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::{
     impl_offset_members,
     offsets::{OfFName, OfFNameEntry, Offsets},
@@ -30,12 +28,15 @@ impl<O: Offsets> FNameEntry<O> {
                 .as_ref()?
         };
 
-        if header.len() == 0 {
+        if header.is_empty() {
             Some("".into())
         } else if header.is_wide() {
             Some(String::from_utf16_lossy(terminated(unsafe { data.wide.as_ptr() }, &0)).into())
         } else {
-            Some(String::from_utf8_lossy(terminated(unsafe { data.ansi.as_ptr() }, &0)).into())
+            Some(String::from_utf8_lossy(terminated(
+                unsafe { data.ansi.as_ptr() },
+                &0,
+            )))
         }
     }
 }
@@ -85,12 +86,12 @@ impl<O: Offsets> From<FNameEntryHeader<O>> for u16 {
     }
 }
 
-const FNAME_MAX_BLOCK_BITS: usize = 13;
+// const FNAME_MAX_BLOCK_BITS: usize = 13;
 const FNAME_BLOCK_OFFSET_BITS: usize = 16;
-const FNAME_MAX_BLOCKS: usize = 1 << FNAME_MAX_BLOCK_BITS;
+// const FNAME_MAX_BLOCKS: usize = 1 << FNAME_MAX_BLOCK_BITS;
 const FNAME_BLOCK_OFFSETS: u32 = 1 << FNAME_BLOCK_OFFSET_BITS;
-const FNAME_ENTRY_ID_BITS: usize = FNAME_BLOCK_OFFSET_BITS + FNAME_MAX_BLOCK_BITS;
-const FNAME_ENTRY_ID_MASK: usize = (1 << FNAME_ENTRY_ID_BITS) - 1;
+// const FNAME_ENTRY_ID_BITS: usize = FNAME_BLOCK_OFFSET_BITS + FNAME_MAX_BLOCK_BITS;
+// const FNAME_ENTRY_ID_MASK: usize = (1 << FNAME_ENTRY_ID_BITS) - 1;
 
 #[repr(C)]
 pub struct FNameEntryHandle {
@@ -119,7 +120,7 @@ pub type FNameEntryId = u32;
 
 #[repr(transparent)]
 pub struct FName<O: Offsets>([u8; O::FName::SIZE], PhantomData<O>)
-// rustc bug
+// TODO: rustc bug
 where
     [u8; O::FName::SIZE]: Sized;
 
