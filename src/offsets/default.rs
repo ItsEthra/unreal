@@ -7,6 +7,10 @@ offset_preset! {
             WideBit = 0;
             LenBit = 6;
         }
+        FName => {
+            Size = 8;
+            Number = 4;
+        }
         FProperty => {
             ArrayDim = 0x38;
             ElementSize = 0x3C;
