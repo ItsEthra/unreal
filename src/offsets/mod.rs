@@ -1,6 +1,6 @@
 mod default;
 
-mod presets {
+pub mod presets {
     pub use super::default::*;
 }
 
@@ -72,7 +72,7 @@ pub trait OfFProperty {
 }
 
 pub trait Offsets {
-    type NameEntry: OfFNameEntry;
+    type FNameEntry: OfFNameEntry;
 
     type UObject: OfUObject;
     type UStruct: OfUStruct;
@@ -80,6 +80,7 @@ pub trait Offsets {
 
     type FField: OfFField;
     type UField: OfUField;
+    type UEnum: OfUEnum;
     type FProperty: OfFProperty;
 }
 
@@ -118,8 +119,19 @@ macro_rules! offset_preset {
         $crate::offset_preset!(@classpass $target ; $($t)* );
     };
 
+    (@declpass $target:ident ;) => { };
+    (@declpass $target:ident ; $group:ident => { $($_:tt)* } $($t:tt)* ) => {
+        type $group = Self;
+        $crate::offset_preset!(@declpass $target ; $($t)*);
+    };
+
     ($vs:vis $target:ident => { $($t:tt)* }) => {
         $vs struct $target;
+
+        impl $crate::offsets::Offsets for $target {
+            $crate::offset_preset!(@declpass $target ; $($t)* );
+        }
+
         $crate::offset_preset!(@classpass $target ; $($t)*);
     };
 }
