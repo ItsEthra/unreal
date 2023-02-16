@@ -1,0 +1,17 @@
+[package]
+name = "dumper"
+description = "Tool to generate SDK for UE games"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["ItsEthra"]
+repository = "https://github.com/ItsEthra/unreal"
+
+[dependencies]
+argh = "0.1.10"
+bytemuck = { version = "1.13.0", features = ["derive"] }
+env_logger = "0.10.0"
+eyre = "0.6.8"
+log = "0.4.17"
+memflex = { version = "0.4.1", features = ["external"] }
+paste = "1"

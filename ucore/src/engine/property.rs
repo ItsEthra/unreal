@@ -1,9 +1,5 @@
-use crate::offsets::Offsets;
-use std::marker::PhantomData;
-
 bitflags::bitflags! {
     struct EPropertyFlags : u64 {
-        const NONE = 0;
         const EDIT = 0x1;
         const CONST_PARM = 0x2;
         const BLUEPRINT_VISIBLE = 0x4;
@@ -56,5 +52,3 @@ bitflags::bitflags! {
         const SKIP_SERIALIZATION = 0x80000000000000;
     }
 }
-
-pub struct FProperty<O: Offsets>(PhantomData<O>);
