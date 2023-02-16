@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use argh::FromArgs;
 use offsets::Offsets;
 use process::{ExternalProcess, Process, Ptr};

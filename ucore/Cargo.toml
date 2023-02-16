@@ -1,11 +1,11 @@
 [package]
 name = "ucore"
 description = "Library with core UE components"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-authors = ["ItsEthra"]
-repository = "https://github.com/ItsEthra/unreal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [dependencies]
 bitflags = "1"
