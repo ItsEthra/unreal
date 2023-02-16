@@ -1,9 +1,5 @@
-use crate::offsets::Offsets;
-use std::marker::PhantomData;
-
 bitflags::bitflags! {
     struct EFunctionFlags : u32 {
-        const NONE = 0x0;
         const FINAL = 0x1;
         const REQUIRED_API = 0x2;
         const BLUEPRINT_AUTHORITY_ONLY= 0x4;
@@ -34,8 +30,5 @@ bitflags::bitflags! {
         const EDITOR_ONLY = 0x20000000;
         const CONST = 0x40000000;
         const NET_VALIDATE = 0x80000000;
-        const ALL_FLAGS = 0xFFFFFFFF;
     }
 }
-
-pub struct UFunction<O: Offsets>(PhantomData<O>);
