@@ -1,4 +1,4 @@
-use crate::{offsets::Offsets, process::Ptr, Info};
+use crate::{offsets::Offsets, ptr::Ptr, Info};
 use bytemuck::{Pod, Zeroable};
 use eyre::Result;
 use log::trace;
@@ -22,6 +22,7 @@ pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
         info.process
             .read_val(names, &mut block_count as *mut u32 as _, size_of::<u32>())?;
     }
+    trace!("Number of name blocks: {block_count}");
 
     let mut current_block_ptr = Ptr(0);
     let mut blocks = vec![];
@@ -29,7 +30,7 @@ pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
     for i in 0..block_count as usize {
         unsafe {
             info.process.read_val(
-                Ptr(names.0 + (i + 1) * size_of::<usize>()),
+                names + (i + 1) * size_of::<usize>(),
                 &mut current_block_ptr as *mut Ptr as _,
                 size_of::<usize>(),
             )?;
