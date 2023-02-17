@@ -1,8 +1,8 @@
 use super::{OfFName, OfFNameEntry, OfFUObjectItem, OfUObject, Offsets};
 
 pub const DEFAULT: Offsets = Offsets {
-    stride: 4,
-    fuobject_item: OfFUObjectItem { size: 0x18 },
+    stride: 2,
+    fuobjectitem: OfFUObjectItem { size: 0x18 },
     uobject: OfUObject {
         index: 0x8,
         class: 0x10,
@@ -12,7 +12,7 @@ pub const DEFAULT: Offsets = Offsets {
     },
     fname: OfFName {
         size: 0x8,
-        number: 0x4,
+        index: 0x0,
     },
     fnameentry: OfFNameEntry {
         header: 0x0,

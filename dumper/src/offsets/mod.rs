@@ -7,7 +7,7 @@ pub struct OfFUObjectItem {
 
 pub struct OfFName {
     pub size: usize,
-    pub number: usize,
+    pub index: usize,
 }
 
 pub struct OfUObject {
@@ -29,7 +29,7 @@ pub struct OfFNameEntry {
 pub struct Offsets {
     pub stride: usize,
 
-    pub fuobject_item: OfFUObjectItem,
+    pub fuobjectitem: OfFUObjectItem,
     pub uobject: OfUObject,
     pub fname: OfFName,
     pub fnameentry: OfFNameEntry,

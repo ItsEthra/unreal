@@ -2,7 +2,7 @@ use crate::{offsets::Offsets, ptr::Ptr, Info};
 use bytemuck::{Pod, Zeroable};
 use eyre::Result;
 use log::trace;
-use std::{borrow::Cow, mem::size_of, slice::from_raw_parts_mut};
+use std::{borrow::Cow, fmt, mem::size_of, slice::from_raw_parts_mut};
 
 // const FNAME_MAX_BLOCK_BITS: u32 = 13; // Limit block array a bit, still allowing 8k * block size = 1GB - 2G of FName entry data
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
@@ -11,9 +11,31 @@ const FNAME_BLOCK_OFFSETS: u32 = 1 << FNAME_BLOCK_OFFSET_BITS;
 // const FNAME_ENTRY_ID_BITS: u32 = FNAME_BLOCK_OFFSET_BITS + FNAME_MAX_BLOCK_BITS;
 // const FNAME_ENTRY_ID_MASK: u32 = (1 << FNAME_ENTRY_ID_BITS) - 1;
 
-#[allow(dead_code)]
+#[derive(Default, Zeroable, Pod, Clone, Copy)]
+#[repr(C)]
+pub struct FNameEntryId {
+    value: u32,
+    _pad: u32,
+}
+
+impl fmt::Debug for FNameEntryId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:X}", self.value)
+    }
+}
+
 pub struct GNames {
     blocks: Vec<NameBlock>,
+}
+
+impl GNames {
+    pub fn get(&self, id: FNameEntryId, offsets: &Offsets) -> FName {
+        let block = id.value >> FNAME_BLOCK_OFFSET_BITS;
+        let offset = id.value & (FNAME_BLOCK_OFFSETS - 1);
+
+        let block = &self.blocks[block as usize];
+        block.at(offsets.stride * offset as usize, offsets)
+    }
 }
 
 pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
@@ -27,7 +49,7 @@ pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
     let mut current_block_ptr = Ptr(0);
     let mut blocks = vec![];
 
-    for i in 0..block_count as usize {
+    for i in 0..=block_count as usize {
         unsafe {
             info.process.read_val(
                 names + (i + 1) * size_of::<usize>(),
@@ -41,40 +63,49 @@ pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
         }
 
         trace!("Current name block: {current_block_ptr:?}");
-        blocks.push(dump_name_block(info, current_block_ptr)?);
+        let block = dump_name_block(info, current_block_ptr)?;
+        block.for_each_name(info.offsets, |n| trace!("{n}"));
+
+        blocks.push(block);
     }
 
     Ok(GNames { blocks })
 }
-
 pub struct NameBlock(Box<[u8]>);
 
+pub struct FName<'a> {
+    pub header: FNameEntryHeader,
+    pub text: Cow<'a, str>,
+}
+
 impl NameBlock {
+    fn at(&self, pos: usize, offsets: &Offsets) -> FName {
+        let header: FNameEntryHeader = self.0[pos..pos + 2].try_into().unwrap();
+        let len = header.len(offsets);
+
+        let data = &self.0[pos + 2..pos + 2 + len];
+        let text = if header.is_wide(offsets) {
+            Cow::Owned(String::from_utf16_lossy(bytemuck::cast_slice(data)))
+        } else {
+            String::from_utf8_lossy(data)
+        };
+
+        FName { header, text }
+    }
+
     fn for_each_name(&self, offsets: &Offsets, mut cb: impl FnMut(Cow<str>)) {
         let mut pos = 0;
 
         while pos < self.0.len() {
-            let header: FNameEntryHeader = self.0[pos..pos + 2].try_into().unwrap();
-            let (len, size) = header.len_size(offsets);
+            let name = self.at(pos, offsets);
 
-            if pos + 2 + len > self.0.len() {
+            if name.text.is_empty() {
                 break;
             }
 
-            let data = &self.0[pos + 2..pos + 2 + len];
-            let name = if header.is_wide(offsets) {
-                Cow::Owned(String::from_utf16_lossy(bytemuck::cast_slice(data)))
-            } else {
-                String::from_utf8_lossy(data)
-            };
+            cb(name.text);
 
-            if name.is_empty() {
-                break;
-            }
-
-            cb(name);
-
-            pos += 2 + size;
+            pos += 2 + name.header.size(offsets);
         }
     }
 }
@@ -104,7 +135,7 @@ fn dump_name_block(info: &Info, name_block_ptr: Ptr) -> Result<NameBlock> {
 
 #[derive(Zeroable, Pod, Clone, Copy)]
 #[repr(transparent)]
-struct FNameEntryHeader(u16);
+pub struct FNameEntryHeader(u16);
 
 impl<'a> TryFrom<&'a [u8]> for FNameEntryHeader {
     type Error = <[u8; 2] as TryFrom<&'a [u8]>>::Error;
@@ -117,23 +148,25 @@ impl<'a> TryFrom<&'a [u8]> for FNameEntryHeader {
 
 impl FNameEntryHeader {
     #[inline]
-    fn is_wide(&self, offsets: &Offsets) -> bool {
+    pub fn is_wide(&self, offsets: &Offsets) -> bool {
         (self.0 >> offsets.fnameentry.wide_bit) & 1 != 0
     }
 
-    // Len is size of data in bytes.
-    // Size is size of data in bytes but aligned.
+    // Size of data in bytes.
     #[inline]
-    fn len_size(&self, offsets: &Offsets) -> (usize, usize) {
-        let len = (self.0 >> offsets.fnameentry.len_bit) as usize
-            * if self.is_wide(offsets) { 2 } else { 1 };
+    pub fn len(&self, offsets: &Offsets) -> usize {
+        (self.0 >> offsets.fnameentry.len_bit) as usize * if self.is_wide(offsets) { 2 } else { 1 }
+    }
 
-        let mut size = len;
+    // Size of data in bytes aligned to 2.
+    #[inline]
+    pub fn size(&self, offsets: &Offsets) -> usize {
+        let mut size = self.len(offsets);
 
         if size % 2 != 0 {
             size += 1;
         }
 
-        (len, size)
+        size
     }
 }
