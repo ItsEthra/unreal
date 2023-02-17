@@ -4,7 +4,7 @@ pub const DEFAULT: Offsets = Offsets {
     stride: 2,
     fuobjectitem: OfFUObjectItem { size: 0x18 },
     uobject: OfUObject {
-        index: 0x8,
+        index: 0xC,
         class: 0x10,
         name: 0x18,
         outer: 0x20,

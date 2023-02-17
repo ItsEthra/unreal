@@ -62,15 +62,28 @@ fn dump_object_name<'n>(info: &Info, gnames: &'n GNames, uobject_ptr: Ptr) -> Re
     let mut index = FNameEntryId::default();
     info.process.read_buf(
         uobject_ptr + info.offsets.uobject.name + info.offsets.fname.index,
-        bytemuck::bytes_of_mut(&mut index),
+        bytes_of_mut(&mut index),
     )?;
 
     Ok(gnames.get(index, info.offsets))
 }
 
+fn dump_object_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
+    let mut index = 0u32;
+    info.process.read_buf(
+        uobject_ptr + info.offsets.uobject.index,
+        bytes_of_mut(&mut index),
+    )?;
+
+    Ok(index)
+}
+
 fn dump_object(info: &Info, gnames: &GNames, uobject_ptr: Ptr) -> Result<()> {
     let name = dump_object_name(info, gnames, uobject_ptr)?;
-    trace!("{}", name.text);
+    let index = dump_object_index(info, uobject_ptr)?;
+
+    let mut f = info.objects_dump.borrow_mut();
+    writeln!(f, "UObject[{index}] - {}", name.text)?;
 
     Ok(())
 }

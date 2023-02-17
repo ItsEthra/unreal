@@ -2,6 +2,7 @@ use argh::FromArgs;
 use offsets::Offsets;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
+use std::{cell::RefCell, fs, io::Write};
 
 mod names;
 mod objects;
@@ -12,6 +13,9 @@ mod ptr;
 pub struct Info {
     process: Box<dyn Process>,
     offsets: &'static Offsets,
+
+    names_dump: RefCell<Box<dyn Write>>,
+    objects_dump: RefCell<Box<dyn Write>>,
 }
 
 #[derive(FromArgs)]
@@ -36,9 +40,21 @@ fn main() -> eyre::Result<()> {
 
     let args: Args = argh::from_env();
 
+    let names_dump = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open("NamesDump.txt")?;
+    let objects_dump = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open("ObjectsDump.txt")?;
+
     let config = Info {
         process: Box::new(ExternalProcess::new(args.pid)?),
         offsets: &offsets::DEFAULT,
+
+        names_dump: (Box::new(names_dump) as Box<dyn Write>).into(),
+        objects_dump: (Box::new(objects_dump) as Box<dyn Write>).into(),
     };
 
     let map_addr_arg = |s: String| {

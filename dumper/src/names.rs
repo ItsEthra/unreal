@@ -59,8 +59,6 @@ pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
 
         trace!("Current name block: {current_block_ptr:?}");
         let block = dump_name_block(info, current_block_ptr)?;
-        block.for_each_name(info.offsets, |n| trace!("{n}"));
-
         blocks.push(block);
     }
 
@@ -123,7 +121,9 @@ fn dump_name_block(info: &Info, name_block_ptr: Ptr) -> Result<NameBlock> {
     }
 
     let block = NameBlock(data.into_boxed_slice());
-    block.for_each_name(info.offsets, |_| ());
+
+    let mut f = info.names_dump.borrow_mut();
+    block.for_each_name(info.offsets, |n| _ = writeln!(f, "{n}"));
 
     Ok(block)
 }
