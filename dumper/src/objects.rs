@@ -1,6 +1,6 @@
 use crate::{
-    names::{FName, FNameEntryId},
     ptr::Ptr,
+    utils::{get_uobject_index, get_uobject_name},
     Info, OFFSETS,
 };
 use bytemuck::bytes_of_mut;
@@ -68,29 +68,9 @@ fn dump_chunk(info: &Info, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
     Ok(())
 }
 
-fn dump_object_name(info: &Info, uobject_ptr: Ptr) -> Result<FName> {
-    let mut index = FNameEntryId::default();
-    info.process.read_buf(
-        uobject_ptr + OFFSETS.uobject.name + OFFSETS.fname.index,
-        bytes_of_mut(&mut index),
-    )?;
-
-    Ok(info.names.get(index))
-}
-
-fn dump_object_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
-    let mut index = 0u32;
-    info.process.read_buf(
-        uobject_ptr + OFFSETS.uobject.index,
-        bytes_of_mut(&mut index),
-    )?;
-
-    Ok(index)
-}
-
 fn dump_object(info: &Info, uobject_ptr: Ptr) -> Result<()> {
-    let name = dump_object_name(info, uobject_ptr)?;
-    let index = dump_object_index(info, uobject_ptr)?;
+    let name = get_uobject_name(info, uobject_ptr)?;
+    let index = get_uobject_index(info, uobject_ptr)?;
 
     let mut f = info.objects_dump.borrow_mut();
     writeln!(f, "UObject[{index}] - {}", name.text)?;

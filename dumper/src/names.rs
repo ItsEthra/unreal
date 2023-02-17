@@ -71,6 +71,12 @@ pub struct FName<'a> {
     pub text: Cow<'a, str>,
 }
 
+impl<'a> fmt::Debug for FName<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.text)
+    }
+}
+
 impl NameBlock {
     fn at(&self, pos: usize) -> FName {
         let header: FNameEntryHeader = self.0[pos..pos + 2].try_into().unwrap();

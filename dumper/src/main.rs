@@ -11,6 +11,7 @@ mod objects;
 mod offsets;
 mod process;
 mod ptr;
+mod utils;
 
 const OFFSETS: &Offsets = &offsets::DEFAULT;
 
