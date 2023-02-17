@@ -5,13 +5,19 @@ use crate::{
 };
 use bytemuck::bytes_of_mut;
 use eyre::Result;
-use log::trace;
+use log::{info, trace};
 use std::mem::size_of;
 
-pub fn dump_objects(info: &Info, gnames: &GNames, objects: Ptr) -> Result<()> {
+#[allow(dead_code)]
+pub struct GObjects {
+    // Pointers to UObjectBase
+    objs: Vec<Ptr>,
+}
+
+pub fn dump_objects(info: &Info, gnames: &GNames, gobjects: Ptr) -> Result<GObjects> {
     let mut bytes = [0u32; 4];
     info.process.read_buf(
-        objects + size_of::<usize>() * 2,
+        gobjects + size_of::<usize>() * 2,
         bytemuck::cast_slice_mut(&mut bytes),
     )?;
 
@@ -20,25 +26,28 @@ pub fn dump_objects(info: &Info, gnames: &GNames, objects: Ptr) -> Result<()> {
 
     let mut chunk_array_ptr: Ptr = Ptr(0);
     info.process
-        .read_buf(objects, bytes_of_mut(&mut chunk_array_ptr))?;
+        .read_buf(gobjects, bytes_of_mut(&mut chunk_array_ptr))?;
     trace!("Chunk array ptr: {chunk_array_ptr:?}");
 
+    let mut objs = vec![];
     for _ in 0..num_chunks as usize {
         let mut chunk_ptr = Ptr(0);
         info.process
             .read_buf(chunk_array_ptr, bytes_of_mut(&mut chunk_ptr))?;
         trace!("Chunk ptr: {chunk_ptr:?}");
 
-        dump_chunk(info, gnames, chunk_ptr)?;
+        dump_chunk(info, gnames, chunk_ptr, &mut objs)?;
         chunk_array_ptr += size_of::<usize>();
     }
 
-    Ok(())
+    info!("Dumped {} objects", objs.len());
+
+    Ok(GObjects { objs })
 }
 
 const NUM_ELEMENTS_PER_CHUNK: usize = 64 * 1024;
 
-fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr) -> Result<()> {
+fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
     let mut item_ptr = chunk_ptr;
     for _ in 0..NUM_ELEMENTS_PER_CHUNK {
         let mut uobject_ptr = Ptr(0);
@@ -50,6 +59,7 @@ fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr) -> Result<()> {
         }
 
         // trace!("UObject: {uobject_ptr:?}");
+        objs.push(uobject_ptr);
         dump_object(info, gnames, uobject_ptr)?;
 
         item_ptr += info.offsets.fuobjectitem.size;

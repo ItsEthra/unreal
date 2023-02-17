@@ -1,10 +1,10 @@
 use crate::{offsets::Offsets, ptr::Ptr, Info};
 use bytemuck::{bytes_of_mut, Pod, Zeroable};
 use eyre::Result;
-use log::trace;
-use std::{borrow::Cow, fmt, mem::size_of, slice::from_raw_parts_mut};
+use log::{info, trace};
+use std::{array::TryFromSliceError, borrow::Cow, fmt, mem::size_of, slice::from_raw_parts_mut};
 
-// const FNAME_MAX_BLOCK_BITS: u32 = 13; // Limit block array a bit, still allowing 8k * block size = 1GB - 2G of FName entry data
+// const FNAME_MAX_BLOCK_BITS: u32 = 13;
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
 // const FNAME_MAX_BLOCKS: u32 = 1 << FNAME_MAX_BLOCK_BITS;
 const FNAME_BLOCK_OFFSETS: u32 = 1 << FNAME_BLOCK_OFFSET_BITS;
@@ -38,11 +38,12 @@ impl GNames {
     }
 }
 
-pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
-    let mut block_slot_ptr = names + size_of::<usize>();
+pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
+    let mut block_slot_ptr = gnames + size_of::<usize>();
     let mut block_ptr = Ptr(0);
     let mut blocks = vec![];
 
+    let mut name_count = 0;
     loop {
         info.process
             .read_buf(block_slot_ptr, bytes_of_mut(&mut block_ptr))?;
@@ -53,10 +54,13 @@ pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
 
         trace!("Current name block: {block_ptr:?}");
         let block = dump_name_block(info, block_ptr)?;
+        block.for_each_name(info.offsets, |_| name_count += 1);
+
         blocks.push(block);
 
         block_slot_ptr += size_of::<usize>();
     }
+    info!("Dumped {name_count} names");
 
     Ok(GNames { blocks })
 }
@@ -129,7 +133,7 @@ fn dump_name_block(info: &Info, name_block_ptr: Ptr) -> Result<NameBlock> {
 pub struct FNameEntryHeader(u16);
 
 impl<'a> TryFrom<&'a [u8]> for FNameEntryHeader {
-    type Error = <[u8; 2] as TryFrom<&'a [u8]>>::Error;
+    type Error = TryFromSliceError;
 
     fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
         let buf: [u8; 2] = value.try_into()?;
