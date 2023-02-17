@@ -1,7 +1,7 @@
 use crate::{
     names::{FName, FNameEntryId},
     ptr::Ptr,
-    Info,
+    Info, OFFSETS,
 };
 use bytemuck::bytes_of_mut;
 use eyre::Result;
@@ -62,26 +62,26 @@ fn dump_chunk(info: &Info, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
         objs.push(uobject_ptr);
         dump_object(info, uobject_ptr)?;
 
-        item_ptr += info.offsets.fuobjectitem.size;
+        item_ptr += OFFSETS.fuobjectitem.size;
     }
 
     Ok(())
 }
 
-fn dump_object_name<'n>(info: &'n Info, uobject_ptr: Ptr) -> Result<FName<'n>> {
+fn dump_object_name(info: &Info, uobject_ptr: Ptr) -> Result<FName> {
     let mut index = FNameEntryId::default();
     info.process.read_buf(
-        uobject_ptr + info.offsets.uobject.name + info.offsets.fname.index,
+        uobject_ptr + OFFSETS.uobject.name + OFFSETS.fname.index,
         bytes_of_mut(&mut index),
     )?;
 
-    Ok(info.names.get(index, info.offsets))
+    Ok(info.names.get(index))
 }
 
 fn dump_object_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
     let mut index = 0u32;
     info.process.read_buf(
-        uobject_ptr + info.offsets.uobject.index,
+        uobject_ptr + OFFSETS.uobject.index,
         bytes_of_mut(&mut index),
     )?;
 

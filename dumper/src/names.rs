@@ -1,4 +1,4 @@
-use crate::{offsets::Offsets, ptr::Ptr, Info};
+use crate::{ptr::Ptr, Info, OFFSETS};
 use bytemuck::{bytes_of_mut, Pod, Zeroable};
 use eyre::Result;
 use log::{info, trace};
@@ -29,12 +29,12 @@ pub struct GNames {
 }
 
 impl GNames {
-    pub fn get(&self, id: FNameEntryId, offsets: &Offsets) -> FName {
+    pub fn get(&self, id: FNameEntryId) -> FName {
         let block = id.value >> FNAME_BLOCK_OFFSET_BITS;
         let offset = id.value & (FNAME_BLOCK_OFFSETS - 1);
 
         let block = &self.blocks[block as usize];
-        block.at(offsets.stride * offset as usize, offsets)
+        block.at(OFFSETS.stride * offset as usize)
     }
 }
 
@@ -54,7 +54,7 @@ pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
 
         trace!("Current name block: {block_ptr:?}");
         let block = dump_name_block(info, block_ptr)?;
-        block.for_each_name(info.offsets, |_| name_count += 1);
+        block.for_each_name(|_| name_count += 1);
 
         blocks.push(block);
 
@@ -72,12 +72,12 @@ pub struct FName<'a> {
 }
 
 impl NameBlock {
-    fn at(&self, pos: usize, offsets: &Offsets) -> FName {
+    fn at(&self, pos: usize) -> FName {
         let header: FNameEntryHeader = self.0[pos..pos + 2].try_into().unwrap();
-        let len = header.len(offsets);
+        let len = header.len();
 
         let data = &self.0[pos + 2..pos + 2 + len];
-        let text = if header.is_wide(offsets) {
+        let text = if header.is_wide() {
             Cow::Owned(String::from_utf16_lossy(bytemuck::cast_slice(data)))
         } else {
             String::from_utf8_lossy(data)
@@ -86,11 +86,11 @@ impl NameBlock {
         FName { header, text }
     }
 
-    fn for_each_name(&self, offsets: &Offsets, mut cb: impl FnMut(Cow<str>)) {
+    fn for_each_name(&self, mut cb: impl FnMut(Cow<str>)) {
         let mut pos = 0;
 
         while pos < self.0.len() {
-            let name = self.at(pos, offsets);
+            let name = self.at(pos);
 
             if name.text.is_empty() {
                 break;
@@ -98,13 +98,13 @@ impl NameBlock {
 
             cb(name.text);
 
-            pos += 2 + name.header.size(offsets);
+            pos += 2 + name.header.size();
         }
     }
 }
 
 fn dump_name_block(info: &Info, name_block_ptr: Ptr) -> Result<NameBlock> {
-    let block_size = info.offsets.stride * FNAME_BLOCK_OFFSETS as usize;
+    let block_size = OFFSETS.stride * FNAME_BLOCK_OFFSETS as usize;
 
     // I am not using `MaybeUninit<u8>` here because its making everything else
     // look ugly because rustc can't stabilize very useful feature smh.
@@ -123,7 +123,7 @@ fn dump_name_block(info: &Info, name_block_ptr: Ptr) -> Result<NameBlock> {
     let block = NameBlock(data.into_boxed_slice());
 
     let mut f = info.names_dump.borrow_mut();
-    block.for_each_name(info.offsets, |n| _ = writeln!(f, "{n}"));
+    block.for_each_name(|n| _ = writeln!(f, "{n}"));
 
     Ok(block)
 }
@@ -143,20 +143,20 @@ impl<'a> TryFrom<&'a [u8]> for FNameEntryHeader {
 
 impl FNameEntryHeader {
     #[inline]
-    pub fn is_wide(&self, offsets: &Offsets) -> bool {
-        (self.0 >> offsets.fnameentry.wide_bit) & 1 != 0
+    pub fn is_wide(&self) -> bool {
+        (self.0 >> OFFSETS.fnameentry.wide_bit) & 1 != 0
     }
 
     // Size of data in bytes.
     #[inline]
-    pub fn len(&self, offsets: &Offsets) -> usize {
-        (self.0 >> offsets.fnameentry.len_bit) as usize * if self.is_wide(offsets) { 2 } else { 1 }
+    pub fn len(&self) -> usize {
+        (self.0 >> OFFSETS.fnameentry.len_bit) as usize * if self.is_wide() { 2 } else { 1 }
     }
 
     // Size of data in bytes aligned to 2.
     #[inline]
-    pub fn size(&self, offsets: &Offsets) -> usize {
-        let mut size = self.len(offsets);
+    pub fn size(&self) -> usize {
+        let mut size = self.len();
 
         if size % 2 != 0 {
             size += 1;
