@@ -1,10 +1,12 @@
+use bytemuck::{Pod, Zeroable};
 use std::{
     fmt,
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
 // Pointer inside target process
-#[derive(Clone, Copy)]
+#[derive(Zeroable, Pod, Clone, Copy)]
+#[repr(transparent)]
 pub struct Ptr(pub usize);
 
 impl Add<usize> for Ptr {

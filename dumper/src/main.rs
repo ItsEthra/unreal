@@ -53,10 +53,11 @@ fn main() -> eyre::Result<()> {
     let objects_ptr = Ptr(args
         .objects
         .map(map_addr_arg)
-        .expect("GObjects is required so far"));
+        .expect("GObjects is required so far"))
+        + 0x10;
 
-    names::dump_names(&config, names_ptr)?;
-    objects::dump_objects(&config, objects_ptr)?;
+    let gnames = names::dump_names(&config, names_ptr)?;
+    objects::dump_objects(&config, &gnames, objects_ptr)?;
 
     Ok(())
 }
