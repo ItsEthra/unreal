@@ -12,6 +12,8 @@ mod offsets;
 mod process;
 mod ptr;
 
+const OFFSETS: &Offsets = &offsets::DEFAULT;
+
 pub struct GNamesProxy(Option<GNames>);
 impl Deref for GNamesProxy {
     type Target = GNames;
@@ -23,7 +25,6 @@ impl Deref for GNamesProxy {
 
 pub struct Info {
     process: Box<dyn Process>,
-    offsets: &'static Offsets,
     names: GNamesProxy,
 
     names_dump: RefCell<Box<dyn Write>>,
@@ -63,7 +64,6 @@ fn main() -> Result<()> {
 
     let mut info = Info {
         process: Box::new(ExternalProcess::new(args.pid)?),
-        offsets: &offsets::DEFAULT,
         names: GNamesProxy(None),
 
         names_dump: (Box::new(names_dump) as Box<dyn Write>).into(),
