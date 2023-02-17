@@ -1,4 +1,5 @@
 use argh::FromArgs;
+use eyre::Result;
 use offsets::Offsets;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
@@ -34,7 +35,8 @@ struct Args {
     objects: Option<String>,
 }
 
-fn main() -> eyre::Result<()> {
+fn main() -> Result<()> {
+    color_eyre::install()?;
     env_logger::init();
 
     let args: Args = argh::from_env();
