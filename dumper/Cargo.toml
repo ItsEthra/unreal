@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 argh = "0.1.10"
 bytemuck = { version = "1.13.0", features = ["derive"] }
+color-eyre = "0.6.2"
 env_logger = "0.10.0"
 eyre = "0.6.8"
 log = "0.4.17"
