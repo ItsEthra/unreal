@@ -1,5 +1,5 @@
 use crate::{offsets::Offsets, ptr::Ptr, Info};
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{bytes_of_mut, Pod, Zeroable};
 use eyre::Result;
 use log::trace;
 use std::{borrow::Cow, fmt, mem::size_of, slice::from_raw_parts_mut};
@@ -40,23 +40,18 @@ impl GNames {
 
 pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
     let mut block_count = 0u32;
-    unsafe {
-        info.process
-            .read_val(names, &mut block_count as *mut u32 as _, size_of::<u32>())?;
-    }
+    info.process
+        .read_buf(names, bytes_of_mut(&mut block_count))?;
     trace!("Number of name blocks: {block_count}");
 
     let mut current_block_ptr = Ptr(0);
     let mut blocks = vec![];
 
     for i in 0..=block_count as usize {
-        unsafe {
-            info.process.read_val(
-                names + (i + 1) * size_of::<usize>(),
-                &mut current_block_ptr as *mut Ptr as _,
-                size_of::<usize>(),
-            )?;
-        }
+        info.process.read_buf(
+            names + (i + 1) * size_of::<usize>(),
+            bytes_of_mut(&mut current_block_ptr),
+        )?;
 
         if current_block_ptr.0 == 0 {
             break;
