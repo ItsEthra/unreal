@@ -14,8 +14,18 @@ pub trait Process {
 pub struct ExternalProcess(memflex::external::OwnedProcess);
 
 impl Process for ExternalProcess {
+    #[cfg(unix)]
     fn new(id: u32) -> Result<Self, Error> {
         memflex::external::find_process_by_id(id)
+            .map(Self)
+            .map_err(Into::into)
+    }
+
+    #[cfg(windows)]
+    fn new(id: u32) -> Result<Self, Error> {
+        use memflex::types::win::PROCESS_VM_READ;
+
+        memflex::external::open_process_by_id(id, false, PROCESS_VM_READ)
             .map(Self)
             .map_err(Into::into)
     }

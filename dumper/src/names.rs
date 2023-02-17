@@ -39,27 +39,23 @@ impl GNames {
 }
 
 pub fn dump_names(info: &Info, names: Ptr) -> Result<GNames> {
-    let mut block_count = 0u32;
-    info.process
-        .read_buf(names, bytes_of_mut(&mut block_count))?;
-    trace!("Number of name blocks: {block_count}");
-
-    let mut current_block_ptr = Ptr(0);
+    let mut block_slot_ptr = names + size_of::<usize>();
+    let mut block_ptr = Ptr(0);
     let mut blocks = vec![];
 
-    for i in 0..=block_count as usize {
-        info.process.read_buf(
-            names + (i + 1) * size_of::<usize>(),
-            bytes_of_mut(&mut current_block_ptr),
-        )?;
+    loop {
+        info.process
+            .read_buf(block_slot_ptr, bytes_of_mut(&mut block_ptr))?;
 
-        if current_block_ptr.0 == 0 {
+        if block_ptr.0 == 0 {
             break;
         }
 
-        trace!("Current name block: {current_block_ptr:?}");
-        let block = dump_name_block(info, current_block_ptr)?;
+        trace!("Current name block: {block_ptr:?}");
+        let block = dump_name_block(info, block_ptr)?;
         blocks.push(block);
+
+        block_slot_ptr += size_of::<usize>();
     }
 
     Ok(GNames { blocks })
