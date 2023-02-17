@@ -3,6 +3,7 @@ use crate::{
     ptr::Ptr,
     Info,
 };
+use bytemuck::bytes_of_mut;
 use eyre::Result;
 use log::trace;
 use std::mem::size_of;
@@ -18,28 +19,17 @@ pub fn dump_objects(info: &Info, gnames: &GNames, objects: Ptr) -> Result<()> {
     trace!("Max elements: {max_elements} Num elements: {num_elements} Max chunks: {max_chunks} Num chunks: {num_chunks}");
 
     let mut chunk_array_ptr: Ptr = Ptr(0);
-    unsafe {
-        info.process.read_val(
-            objects,
-            &mut chunk_array_ptr as *mut _ as _,
-            size_of::<usize>(),
-        )?;
-    }
+    info.process
+        .read_buf(objects, bytes_of_mut(&mut chunk_array_ptr))?;
     trace!("Chunk array ptr: {chunk_array_ptr:?}");
 
     for _ in 0..num_chunks as usize {
         let mut chunk_ptr = Ptr(0);
-        unsafe {
-            info.process.read_val(
-                chunk_array_ptr,
-                &mut chunk_ptr as *mut _ as _,
-                size_of::<usize>(),
-            )?;
-        }
-
+        info.process
+            .read_buf(chunk_array_ptr, bytes_of_mut(&mut chunk_ptr))?;
         trace!("Chunk ptr: {chunk_ptr:?}");
-        dump_chunk(info, gnames, chunk_ptr)?;
 
+        dump_chunk(info, gnames, chunk_ptr)?;
         chunk_array_ptr += size_of::<usize>();
     }
 
@@ -52,13 +42,9 @@ fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr) -> Result<()> {
     let mut item_ptr = chunk_ptr;
     for _ in 0..NUM_ELEMENTS_PER_CHUNK {
         let mut uobject_ptr = Ptr(0);
-        unsafe {
-            info.process.read_val(
-                item_ptr,
-                &mut uobject_ptr as *mut _ as _,
-                size_of::<usize>(),
-            )?;
-        }
+        info.process
+            .read_buf(item_ptr, bytes_of_mut(&mut uobject_ptr))?;
+
         if uobject_ptr.0 == 0 {
             break;
         }
