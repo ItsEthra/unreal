@@ -19,7 +19,6 @@ pub struct Info {
 }
 
 #[derive(FromArgs)]
-#[allow(dead_code)]
 /// UE 4.27+ Dumper by @ItsEthra.
 struct Args {
     #[argh(positional)]
@@ -73,7 +72,7 @@ fn main() -> eyre::Result<()> {
         + 0x10;
 
     let gnames = names::dump_names(&config, names_ptr)?;
-    objects::dump_objects(&config, &gnames, objects_ptr)?;
+    let _gobjects = objects::dump_objects(&config, &gnames, objects_ptr)?;
 
     Ok(())
 }
