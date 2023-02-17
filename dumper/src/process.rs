@@ -1,22 +1,6 @@
+use crate::ptr::Ptr;
 use eyre::Error;
-use std::{fmt, slice::from_raw_parts_mut};
-
-// Pointer inside target process
-#[derive(Clone, Copy)]
-pub struct Ptr(pub usize);
-
-impl fmt::Debug for Ptr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{:X}", self.0)
-    }
-}
-
-impl From<usize> for Ptr {
-    #[inline]
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
+use std::slice::from_raw_parts_mut;
 
 pub trait Process {
     fn new(id: u32) -> Result<Self, Error>

@@ -1,11 +1,13 @@
 use argh::FromArgs;
 use offsets::Offsets;
-use process::{ExternalProcess, Process, Ptr};
+use process::{ExternalProcess, Process};
+use ptr::Ptr;
 
 mod names;
 mod objects;
 mod offsets;
 mod process;
+mod ptr;
 
 pub struct Info {
     process: Box<dyn Process>,
