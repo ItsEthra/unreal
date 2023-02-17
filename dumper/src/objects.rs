@@ -1,5 +1,5 @@
 use crate::{
-    names::{FName, FNameEntryId, GNames},
+    names::{FName, FNameEntryId},
     ptr::Ptr,
     Info,
 };
@@ -14,7 +14,7 @@ pub struct GObjects {
     objs: Vec<Ptr>,
 }
 
-pub fn dump_objects(info: &Info, gnames: &GNames, gobjects: Ptr) -> Result<GObjects> {
+pub fn dump_objects(info: &Info, gobjects: Ptr) -> Result<GObjects> {
     let mut bytes = [0u32; 4];
     info.process.read_buf(
         gobjects + size_of::<usize>() * 2,
@@ -36,7 +36,7 @@ pub fn dump_objects(info: &Info, gnames: &GNames, gobjects: Ptr) -> Result<GObje
             .read_buf(chunk_array_ptr, bytes_of_mut(&mut chunk_ptr))?;
         trace!("Chunk ptr: {chunk_ptr:?}");
 
-        dump_chunk(info, gnames, chunk_ptr, &mut objs)?;
+        dump_chunk(info, chunk_ptr, &mut objs)?;
         chunk_array_ptr += size_of::<usize>();
     }
 
@@ -47,7 +47,7 @@ pub fn dump_objects(info: &Info, gnames: &GNames, gobjects: Ptr) -> Result<GObje
 
 const NUM_ELEMENTS_PER_CHUNK: usize = 64 * 1024;
 
-fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
+fn dump_chunk(info: &Info, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
     let mut item_ptr = chunk_ptr;
     for _ in 0..NUM_ELEMENTS_PER_CHUNK {
         let mut uobject_ptr = Ptr(0);
@@ -60,7 +60,7 @@ fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr, objs: &mut Vec<Ptr>)
 
         // trace!("UObject: {uobject_ptr:?}");
         objs.push(uobject_ptr);
-        dump_object(info, gnames, uobject_ptr)?;
+        dump_object(info, uobject_ptr)?;
 
         item_ptr += info.offsets.fuobjectitem.size;
     }
@@ -68,14 +68,14 @@ fn dump_chunk(info: &Info, gnames: &GNames, chunk_ptr: Ptr, objs: &mut Vec<Ptr>)
     Ok(())
 }
 
-fn dump_object_name<'n>(info: &Info, gnames: &'n GNames, uobject_ptr: Ptr) -> Result<FName<'n>> {
+fn dump_object_name<'n>(info: &'n Info, uobject_ptr: Ptr) -> Result<FName<'n>> {
     let mut index = FNameEntryId::default();
     info.process.read_buf(
         uobject_ptr + info.offsets.uobject.name + info.offsets.fname.index,
         bytes_of_mut(&mut index),
     )?;
 
-    Ok(gnames.get(index, info.offsets))
+    Ok(info.names.get(index, info.offsets))
 }
 
 fn dump_object_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
@@ -88,8 +88,8 @@ fn dump_object_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
     Ok(index)
 }
 
-fn dump_object(info: &Info, gnames: &GNames, uobject_ptr: Ptr) -> Result<()> {
-    let name = dump_object_name(info, gnames, uobject_ptr)?;
+fn dump_object(info: &Info, uobject_ptr: Ptr) -> Result<()> {
+    let name = dump_object_name(info, uobject_ptr)?;
     let index = dump_object_index(info, uobject_ptr)?;
 
     let mut f = info.objects_dump.borrow_mut();

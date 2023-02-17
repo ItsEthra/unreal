@@ -1,9 +1,10 @@
 use argh::FromArgs;
 use eyre::Result;
+use names::GNames;
 use offsets::Offsets;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
-use std::{cell::RefCell, fs, io::Write};
+use std::{cell::RefCell, fs, io::Write, ops::Deref};
 
 mod names;
 mod objects;
@@ -11,9 +12,19 @@ mod offsets;
 mod process;
 mod ptr;
 
+pub struct GNamesProxy(Option<GNames>);
+impl Deref for GNamesProxy {
+    type Target = GNames;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().expect("Cell was not set")
+    }
+}
+
 pub struct Info {
     process: Box<dyn Process>,
     offsets: &'static Offsets,
+    names: GNamesProxy,
 
     names_dump: RefCell<Box<dyn Write>>,
     objects_dump: RefCell<Box<dyn Write>>,
@@ -50,9 +61,10 @@ fn main() -> Result<()> {
         .create(true)
         .open("ObjectsDump.txt")?;
 
-    let config = Info {
+    let mut info = Info {
         process: Box::new(ExternalProcess::new(args.pid)?),
         offsets: &offsets::DEFAULT,
+        names: GNamesProxy(None),
 
         names_dump: (Box::new(names_dump) as Box<dyn Write>).into(),
         objects_dump: (Box::new(objects_dump) as Box<dyn Write>).into(),
@@ -73,8 +85,10 @@ fn main() -> Result<()> {
         .expect("GObjects is required so far"))
         + 0x10;
 
-    let gnames = names::dump_names(&config, names_ptr)?;
-    let _gobjects = objects::dump_objects(&config, &gnames, objects_ptr)?;
+    let gnames = names::dump_names(&info, names_ptr)?;
+    info.names.0 = Some(gnames);
+
+    let _gobjects = objects::dump_objects(&info, objects_ptr)?;
 
     Ok(())
 }
