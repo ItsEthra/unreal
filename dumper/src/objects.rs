@@ -13,7 +13,7 @@ use std::{iter::successors, mem::size_of, rc::Rc};
 #[derive(Clone)]
 pub struct GObjects {
     // Pointers to UObjectBase
-    objs: Rc<Vec<Ptr>>,
+    pub objs: Rc<Vec<Ptr>>,
 }
 
 generate_gobjects_static_classes! {
@@ -54,10 +54,6 @@ generate_gobjects_static_classes! {
 
 #[allow(dead_code)]
 impl GObjects {
-    pub fn for_each_object(&self, callback: impl FnMut(Ptr)) {
-        self.objs.iter().copied().for_each(callback);
-    }
-
     pub fn find_by_full_name(&self, info: &Info, full_name: &str) -> Result<Option<Ptr>> {
         let (expected_class_name, expected_prefixed_name) = full_name
             .split_once(' ')

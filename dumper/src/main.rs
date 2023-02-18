@@ -3,6 +3,7 @@ use eyre::Result;
 use names::GNames;
 use objects::GObjects;
 use offsets::Offsets;
+use package::dump_packages;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
 use std::{cell::RefCell, fs, io::Write, ops::Deref};
@@ -11,6 +12,7 @@ mod macros;
 mod names;
 mod objects;
 mod offsets;
+mod package;
 mod process;
 mod ptr;
 mod utils;
@@ -95,6 +97,8 @@ fn main() -> Result<()> {
 
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
+
+    dump_packages(&info)?;
 
     Ok(())
 }
