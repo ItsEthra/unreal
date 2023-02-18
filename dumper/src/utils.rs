@@ -3,7 +3,7 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
-use sourcer::{ArrayElementType, PropertyData, PropertyType};
+use sourcer::{ArrayElementType, IdName, PropertyData, PropertyType};
 use std::{
     borrow::Cow,
     iter::successors,
@@ -153,10 +153,39 @@ pub fn iter_ffield_linked_list(
     Ok(())
 }
 
-pub fn get_ustruct_children_props(info: &Info, uscript_struct: Ptr) -> Result<Option<Ptr>> {
+pub fn iter_ufield_linked_list(
+    info: &Info,
+    ffield_ptr: Ptr,
+    mut callback: impl FnMut(Ptr) -> Result<()>,
+) -> Result<()> {
+    for ffield in successors(Some(ffield_ptr), |ffield| {
+        let mut next = Ptr(0);
+        info.process
+            .read_buf(*ffield + OFFSETS.ufield.next, bytes_of_mut(&mut next))
+            .ok()?;
+
+        next.to_option()
+    }) {
+        callback(ffield)?;
+    }
+
+    Ok(())
+}
+
+pub fn get_ustruct_children_props(info: &Info, ustruct: Ptr) -> Result<Option<Ptr>> {
     let mut ffield_ptr = Ptr(0);
     info.process.read_buf(
-        uscript_struct + OFFSETS.ustruct.children_props,
+        ustruct + OFFSETS.ustruct.children_props,
+        bytes_of_mut(&mut ffield_ptr),
+    )?;
+
+    Ok(ffield_ptr.to_option())
+}
+
+pub fn get_ustruct_children(info: &Info, ustruct: Ptr) -> Result<Option<Ptr>> {
+    let mut ffield_ptr = Ptr(0);
+    info.process.read_buf(
+        ustruct + OFFSETS.ustruct.children,
         bytes_of_mut(&mut ffield_ptr),
     )?;
 
@@ -294,6 +323,35 @@ pub fn get_fproperty_array_prop_data(
     };
 
     Ok(array_elem_ty.map(|ty| PropertyData::Array { ty, size: dim }))
+}
+
+pub fn get_fproperty_prop_data(
+    info: &Info,
+    fproperty_ptr: Ptr,
+    prop_ty: Option<PropertyType>,
+) -> Result<Option<PropertyData>> {
+    let pd = match prop_ty {
+        Some(PropertyType::Object | PropertyType::Struct) => {
+            let class = get_fobjectproperty_pointee_class(info, fproperty_ptr)?;
+            Some(PropertyData::Qualify {
+                ty: IdName(get_uobject_full_name(info, class)?),
+            })
+        }
+        None => None,
+        _ => None,
+    };
+
+    Ok(pd)
+}
+
+pub fn get_fobjectproperty_pointee_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+    let mut class = Ptr(0);
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.size,
+        bytes_of_mut(&mut class),
+    )?;
+
+    Ok(class)
 }
 
 pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {

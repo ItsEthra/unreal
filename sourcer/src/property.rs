@@ -16,13 +16,8 @@ pub enum ArrayElementType {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum PropertyData {
     Array { ty: ArrayElementType, size: u32 },
-    Vector { ty: IdName },
     Map { key: IdName, value: IdName },
-    Set { ty: IdName },
-    Object { ty: IdName },
-    Class { ty: IdName },
-    Enum { ty: IdName },
-    Struct { ty: IdName },
+    Qualify { ty: IdName },
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
