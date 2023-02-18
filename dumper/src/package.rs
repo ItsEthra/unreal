@@ -12,8 +12,8 @@ use crate::{
     Info,
 };
 use eyre::Result;
-use log::{debug, info, trace};
-use sourcer::{EnumGenerator, PackageGenerator, PropertyType};
+use log::{info, trace};
+use sourcer::{DependencyTree, EnumGenerator, IdName, PackageGenerator, PropertyType};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -85,7 +85,7 @@ impl Package {
             .copied()
             .zip(pairs.iter().map(|(_, k)| k).max().copied());
 
-        enum_cg.begin(&code_name, &full_name, min_max)?;
+        enum_cg.begin(&code_name, IdName(full_name), min_max)?;
         for (name, value) in pairs {
             enum_cg.add_variant(&name, value)?;
         }
@@ -106,8 +106,7 @@ impl Package {
             let _elem_size = get_fproperty_element_size(info, ffield_ptr)?;
             let _offset = get_fproperty_offset(info, ffield_ptr)?;
 
-            let prop_ty = PropertyType::from_str(&classname);
-            let prop_data = if _dim
+            let _prop_ty = PropertyType::from_str(&classname);
 
             Ok(())
         };
@@ -120,7 +119,7 @@ impl Package {
     }
 }
 
-pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
+pub fn dump_packages(info: &Info, deps: &mut DependencyTree) -> Result<Vec<Package>> {
     let mut map: HashMap<String, Vec<Ptr>> = HashMap::new();
 
     let struct_sc = info.objects.struct_static_class(info)?;
@@ -139,6 +138,8 @@ pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
         if !map.contains_key(&package_name) {
             trace!("Found new package {package_name}");
         }
+
+        deps.set_owner(&package_name, IdName(get_uobject_full_name(info, obj)?));
 
         let classes = map.entry(package_name).or_insert(vec![]);
         classes.push(obj);

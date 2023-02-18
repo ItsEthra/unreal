@@ -1,4 +1,4 @@
-use crate::{EnumGenerator, PackageGenerator, SdkGenerator};
+use crate::{EnumGenerator, IdName, PackageGenerator, SdkGenerator};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Result, Write},
@@ -10,7 +10,7 @@ struct EnumGen<'a> {
 }
 
 impl<'a> EnumGenerator for EnumGen<'a> {
-    fn begin(&mut self, name: &str, full_name: &str, min_max: Option<(i64, i64)>) -> Result<()> {
+    fn begin(&mut self, name: &str, id_name: IdName, min_max: Option<(i64, i64)>) -> Result<()> {
         let ty = if let Some((min, max)) = min_max {
             if min < i32::MIN as i64 || max > i32::MAX as i64 {
                 "i64"
@@ -21,7 +21,7 @@ impl<'a> EnumGenerator for EnumGen<'a> {
             "i32"
         };
 
-        writeln!(self.pkg.librs, "// Full name: {full_name}")?;
+        writeln!(self.pkg.librs, "// Full name: {id_name}")?;
         writeln!(self.pkg.librs, "memflex::bitflags! {{")?;
         writeln!(self.pkg.librs, "\t#[repr(transparent)]")?;
         writeln!(self.pkg.librs, "\tpub struct {name} : {ty} {{")?;
