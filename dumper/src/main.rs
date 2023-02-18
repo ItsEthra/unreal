@@ -98,7 +98,7 @@ fn main() -> Result<()> {
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
-    dump_packages(&info)?;
+    let _packages = dump_packages(&info)?;
 
     Ok(())
 }

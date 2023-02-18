@@ -68,6 +68,13 @@ pub fn get_uobject_class(info: &Info, uobject_ptr: Ptr) -> Result<Ptr> {
     Ok(class)
 }
 
+pub fn get_uobject_package(info: &Info, uobject_ptr: Ptr) -> Option<Ptr> {
+    successors(Some(uobject_ptr), |obj| {
+        get_uobject_outer(info, *obj).ok().flatten()
+    })
+    .last()
+}
+
 pub fn get_uobject_outer(info: &Info, uobject_ptr: Ptr) -> Result<Option<Ptr>> {
     let mut outer = Ptr(0);
     info.process.read_buf(

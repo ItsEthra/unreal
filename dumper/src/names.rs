@@ -43,7 +43,7 @@ impl GNames {
 }
 
 pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
-    let mut block_slot_ptr = gnames + size_of::<usize>();
+    let mut block_slot_ptr = gnames + size_of::<usize>() * if cfg!(windows) { 2 } else { 1 };
     let mut block_ptr = Ptr(0);
     let mut blocks = vec![];
 
