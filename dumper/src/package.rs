@@ -2,7 +2,10 @@
 
 use crate::{
     ptr::Ptr,
-    utils::{get_uobject_full_name, get_uobject_name, get_uobject_package, is_uobject_inherits},
+    utils::{
+        get_uobject_code_name, get_uobject_full_name, get_uobject_name, get_uobject_package,
+        is_uobject_inherits,
+    },
     Info,
 };
 use eyre::Result;
