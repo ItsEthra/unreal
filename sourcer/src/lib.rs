@@ -8,7 +8,7 @@ mod deps;
 pub use deps::*;
 
 pub trait ScriptStructGenerator {
-    fn begin(&mut self, name: &str, id_name: IdName) -> Result<()>;
+    fn begin(&mut self, name: &str, id_name: IdName, unaligned_size: usize) -> Result<()>;
 
     fn append_field(
         &mut self,
