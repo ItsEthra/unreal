@@ -3,15 +3,16 @@
 use crate::{
     ptr::Ptr,
     utils::{
-        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_element_size,
-        get_fproperty_offset, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
+        get_ffield_class, get_ffield_class_name, get_ffield_name,
+        get_fobjectproperty_pointee_class, get_fproperty_element_size, get_fproperty_offset,
+        get_fproperty_prop_data, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
         get_uobject_name, get_uobject_package, get_ustruct_alignment, get_ustruct_children_props,
         get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
 use eyre::Result;
-use log::{info, trace};
+use log::{debug, info, trace};
 use sourcer::{
     DependencyTree, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
     ScriptStructGenerator,
@@ -119,7 +120,14 @@ impl Package {
             let offset = get_fproperty_offset(info, ffield_ptr)?;
 
             let prop_ty = PropertyType::from_str(&classname);
-            // let prop_data = get_fproperty_array_prop_data(info, ffield_ptr, prop_ty)?;
+            let prop_data = get_fproperty_prop_data(info, ffield_ptr, prop_ty)?;
+
+            if struct_name == "FNetViewer" {
+                let class = get_fobjectproperty_pointee_class(info, ffield_ptr)?;
+                let name = get_uobject_name(info, class)?;
+
+                debug!("{ffield_ptr:?} {field_name} {classname} {name} {prop_data:?}");
+            }
 
             sstruct_cg.append_field(&field_name, prop_ty, None, elem_size, offset)?;
 
@@ -128,6 +136,10 @@ impl Package {
 
         if let Some(props) = get_ustruct_children_props(info, uscript_struct_ptr)? {
             iter_ffield_linked_list(info, props, callback)?;
+        }
+
+        if struct_name == "FNetViewer" {
+            dbg!(uscript_struct_ptr);
         }
 
         sstruct_cg.end()?;
