@@ -5,7 +5,7 @@ use std::{
 };
 
 // Pointer inside target process
-#[derive(Zeroable, Pod, Clone, Copy)]
+#[derive(Zeroable, Pod, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Ptr(pub usize);
 
