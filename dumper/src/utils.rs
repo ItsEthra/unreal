@@ -3,7 +3,11 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
-use std::iter::successors;
+use std::{
+    borrow::Cow,
+    iter::successors,
+    mem::{size_of, MaybeUninit},
+};
 
 pub fn get_uobject_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
     let mut index = FNameEntryId::default();
@@ -87,6 +91,54 @@ pub fn get_uobject_outer(info: &Info, uobject_ptr: Ptr) -> Result<Option<Ptr>> {
     } else {
         Ok(Some(outer))
     }
+}
+
+pub fn get_uenum_names<'n>(
+    info: &'n Info,
+    uenum_ptr: Ptr,
+    mut callback: impl FnMut(Cow<'n, str>, i64),
+) -> Result<()> {
+    unsafe {
+        iter_tarray_at::<(FNameEntryId, i64)>(
+            info,
+            uenum_ptr + OFFSETS.uenum.names,
+            |&(name, value)| {
+                let name = info.names.get(name);
+                callback(name.text, value)
+            },
+        )?;
+    }
+
+    Ok(())
+}
+
+pub unsafe fn iter_tarray_at<T>(
+    info: &Info,
+    tarray_ptr: Ptr,
+    mut callback: impl FnMut(&T),
+) -> Result<()> {
+    let mut len = 0u32;
+    info.process
+        .read_buf(tarray_ptr + size_of::<usize>(), bytes_of_mut(&mut len))?;
+
+    let mut data_ptr = Ptr(0);
+    info.process
+        .read_buf(tarray_ptr, bytes_of_mut(&mut data_ptr))?;
+
+    if data_ptr.0 == 0 {
+        return Ok(());
+    }
+
+    for i in 0..len as usize {
+        let slot_ptr = data_ptr + i * size_of::<T>();
+        let mut val: MaybeUninit<T> = MaybeUninit::uninit();
+        info.process
+            .read_val(slot_ptr, val.as_mut_ptr() as _, size_of::<T>())?;
+
+        callback(val.assume_init_ref());
+    }
+
+    Ok(())
 }
 
 pub fn get_uobject_full_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
