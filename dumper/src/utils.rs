@@ -315,7 +315,13 @@ pub fn get_fproperty_array_prop_data(
     let array_elem_ty = match dim {
         2.. if prop_ty.is_none() => Some(ArrayElementType::Unknown),
         2.. if prop_ty.unwrap().is_primitive() => Some(ArrayElementType::Primitive),
-        2.. => Some(ArrayElementType::Complex(todo!())),
+        2.. => {
+            let class = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
+            Some(ArrayElementType::Complex(
+                get_uobject_full_name(info, class)?.into(),
+            ))
+        }
+        // 2.. => None,
         1 => None,
         _ => unreachable!(),
     };
@@ -328,9 +334,10 @@ pub fn get_fproperty_prop_data(
     fproperty_ptr: Ptr,
     prop_ty: Option<PropertyType>,
 ) -> Result<Option<PropertyData>> {
-    let pd = match prop_ty {
+    let array_data = get_fproperty_array_prop_data(info, fproperty_ptr, prop_ty)?;
+    let prop_data = match prop_ty {
         Some(PropertyType::Object | PropertyType::Struct) => {
-            let class = get_fobjectproperty_pointee_class(info, fproperty_ptr)?;
+            let class = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
             Some(PropertyData::Qualify {
                 ty: IdName(get_uobject_full_name(info, class)?),
             })
@@ -339,10 +346,20 @@ pub fn get_fproperty_prop_data(
         _ => None,
     };
 
-    Ok(pd)
+    Ok(array_data.or(prop_data))
 }
 
-pub fn get_fobjectproperty_pointee_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+pub fn get_farray_prop_inner_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+    let mut inner_prop = Ptr(0);
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.size,
+        bytes_of_mut(&mut inner_prop),
+    )?;
+
+    Ok(inner_prop)
+}
+
+pub fn get_fobject_prop_pointee_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut class = Ptr(0);
     info.process.read_buf(
         fproperty_ptr + OFFSETS.fproperty.size,
