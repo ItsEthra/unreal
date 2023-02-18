@@ -127,7 +127,7 @@ fn dump_chunk(info: &Info, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
         info.process
             .read_buf(item_ptr, bytes_of_mut(&mut uobject_ptr))?;
 
-        if uobject_ptr.0 == 0 {
+        if uobject_ptr.is_zero() {
             break;
         }
 

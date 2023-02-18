@@ -45,11 +45,7 @@ pub fn get_uclass_super(info: &Info, uclass_ptr: Ptr) -> Result<Option<Ptr>> {
         bytes_of_mut(&mut parent),
     )?;
 
-    if parent.0 == 0 {
-        Ok(None)
-    } else {
-        Ok(Some(parent))
-    }
+    Ok(parent.to_option())
 }
 
 pub fn get_uobject_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
@@ -86,11 +82,7 @@ pub fn get_uobject_outer(info: &Info, uobject_ptr: Ptr) -> Result<Option<Ptr>> {
         bytes_of_mut(&mut outer),
     )?;
 
-    if outer.0 == 0 {
-        Ok(None)
-    } else {
-        Ok(Some(outer))
-    }
+    Ok(outer.to_option())
 }
 
 pub fn get_uenum_names<'n>(
@@ -99,7 +91,7 @@ pub fn get_uenum_names<'n>(
     mut callback: impl FnMut(Cow<'n, str>, i64),
 ) -> Result<()> {
     unsafe {
-        iter_tarray_at::<(FNameEntryId, i64)>(
+        iter_tarray::<(FNameEntryId, i64)>(
             info,
             uenum_ptr + OFFSETS.uenum.names,
             |&(name, value)| {
@@ -112,7 +104,7 @@ pub fn get_uenum_names<'n>(
     Ok(())
 }
 
-pub unsafe fn iter_tarray_at<T>(
+pub unsafe fn iter_tarray<T>(
     info: &Info,
     tarray_ptr: Ptr,
     mut callback: impl FnMut(&T),
@@ -139,6 +131,64 @@ pub unsafe fn iter_tarray_at<T>(
     }
 
     Ok(())
+}
+
+pub fn iter_ffield_linked_list(
+    info: &Info,
+    ffield_ptr: Ptr,
+    mut callback: impl FnMut(Ptr) -> Result<()>,
+) -> Result<()> {
+    for ffield in successors(Some(ffield_ptr), |ffield| {
+        let mut next = Ptr(0);
+        info.process
+            .read_buf(*ffield + OFFSETS.ffield.next, bytes_of_mut(&mut next))
+            .ok()?;
+
+        next.to_option()
+    }) {
+        callback(ffield)?;
+    }
+
+    Ok(())
+}
+
+pub fn get_uscript_struct_children_props(info: &Info, uscript_struct: Ptr) -> Result<Option<Ptr>> {
+    let mut ffield_ptr = Ptr(0);
+    info.process.read_buf(
+        uscript_struct + OFFSETS.ustruct.children_props,
+        bytes_of_mut(&mut ffield_ptr),
+    )?;
+
+    Ok(ffield_ptr.to_option())
+}
+
+pub fn get_ffield_name(info: &Info, ffield_ptr: Ptr) -> Result<Cow<str>> {
+    let mut name = FNameEntryId::default();
+
+    info.process
+        .read_buf(ffield_ptr + OFFSETS.ffield.name, bytes_of_mut(&mut name))?;
+
+    Ok(info.names.get(name).text)
+}
+
+pub fn get_ffield_class(info: &Info, ffield_ptr: Ptr) -> Result<Ptr> {
+    let mut class = Ptr(0);
+
+    info.process
+        .read_buf(ffield_ptr + OFFSETS.ffield.class, bytes_of_mut(&mut class))?;
+
+    Ok(class)
+}
+
+pub fn get_ffield_class_name(info: &Info, ffield_class_ptr: Ptr) -> Result<Cow<str>> {
+    let mut name = FNameEntryId::default();
+
+    info.process.read_buf(
+        ffield_class_ptr + /* TODO: Maybe add to offsets? */ 0x0,
+        bytes_of_mut(&mut name),
+    )?;
+
+    Ok(info.names.get(name).text)
 }
 
 pub fn get_uobject_full_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
