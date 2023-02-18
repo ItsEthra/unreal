@@ -2,7 +2,7 @@
 
 use crate::{
     ptr::Ptr,
-    utils::{get_uobject_name, get_uobject_outer, is_uobject_inherits},
+    utils::{get_uobject_name, get_uobject_package, is_uobject_inherits},
     Info,
 };
 use eyre::Result;
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 pub struct Package {
     name: String,
-    classes: Vec<Ptr>,
+    objects: Vec<Ptr>,
 }
 
 pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
@@ -22,10 +22,9 @@ pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
     let function_sc = info.objects.function_static_class(info)?;
 
     for obj in info.objects.objs.iter().copied() {
-        let Some(package) = get_uobject_outer(info, obj)? else { continue };
+        let Some(package) = get_uobject_package(info, obj) else { continue };
 
-        let is_a = |sc: Ptr| is_uobject_inherits(info, obj, sc);
-
+        let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
         if !is_a(struct_sc)? && !is_a(enum_sc)? && !is_a(function_sc)? {
             continue;
         }
@@ -40,5 +39,9 @@ pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
 
     info!("Found {} packages", map.len());
 
-    Ok(vec![])
+    let packages = map
+        .into_iter()
+        .map(|(name, objects)| Package { name, objects })
+        .collect();
+    Ok(packages)
 }
