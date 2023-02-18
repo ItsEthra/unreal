@@ -264,6 +264,17 @@ pub fn get_ustruct_size(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     Ok(size as usize)
 }
 
+pub fn get_ustruct_alignment(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
+    let mut alignment = 0u32;
+    info.process.read_buf(
+        // TODO: Maybe add to offsets?
+        ustruct_ptr + OFFSETS.ustruct.props_size + 4,
+        bytes_of_mut(&mut alignment),
+    )?;
+
+    Ok(alignment as usize)
+}
+
 pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
     let mut ident = ident.into();
     if ident == "Self" {
