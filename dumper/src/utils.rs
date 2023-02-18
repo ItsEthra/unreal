@@ -108,12 +108,14 @@ pub fn get_uobject_code_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
     let prefix = if is_uobject_inherits(info, uobject_ptr, info.objects.class_static_class(info)?)?
     {
         if is_uclass_inherits(info, uobject_ptr, info.objects.actor_static_class(info)?) {
-            'A'
+            "A"
         } else {
-            'U'
+            "U"
         }
+    } else if is_uobject_inherits(info, uobject_ptr, info.objects.enum_static_class(info)?)? {
+        ""
     } else {
-        'F'
+        "F"
     };
     let name = get_uobject_name(info, uobject_ptr)?;
 
