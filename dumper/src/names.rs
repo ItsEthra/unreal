@@ -2,7 +2,9 @@ use crate::{ptr::Ptr, Info, OFFSETS};
 use bytemuck::{bytes_of_mut, Pod, Zeroable};
 use eyre::Result;
 use log::{info, trace};
-use std::{array::TryFromSliceError, borrow::Cow, fmt, mem::size_of, slice::from_raw_parts_mut};
+use std::{
+    array::TryFromSliceError, borrow::Cow, fmt, mem::size_of, rc::Rc, slice::from_raw_parts_mut,
+};
 
 // const FNAME_MAX_BLOCK_BITS: u32 = 13;
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
@@ -24,8 +26,10 @@ impl fmt::Debug for FNameEntryId {
     }
 }
 
+// Refcounted vector of all name blocks.
+#[derive(Clone)]
 pub struct GNames {
-    blocks: Vec<NameBlock>,
+    blocks: Rc<Vec<NameBlock>>,
 }
 
 impl GNames {
@@ -62,7 +66,9 @@ pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
     }
     info!("Dumped {name_count} names");
 
-    Ok(GNames { blocks })
+    Ok(GNames {
+        blocks: blocks.into(),
+    })
 }
 pub struct NameBlock(Box<[u8]>);
 
