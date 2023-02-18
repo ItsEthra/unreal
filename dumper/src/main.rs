@@ -98,7 +98,9 @@ fn main() -> Result<()> {
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
-    let _packages = dump_packages(&info)?;
+    for package in dump_packages(&info)? {
+        package.process(&info)?;
+    }
 
     Ok(())
 }
