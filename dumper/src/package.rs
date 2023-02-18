@@ -168,7 +168,9 @@ pub fn dump_packages(info: &Info, deps: &mut DependencyTree) -> Result<Vec<Packa
             trace!("Found new package {package_name}");
         }
 
-        deps.set_owner(&package_name, IdName(get_uobject_full_name(info, obj)?));
+        let obj_full_name = get_uobject_full_name(info, obj)?;
+        let obj_code_name = get_uobject_code_name(info, obj)?;
+        deps.set_owner(obj_full_name, &package_name, obj_code_name);
 
         let classes = map.entry(package_name).or_insert(vec![]);
         classes.push(obj);
