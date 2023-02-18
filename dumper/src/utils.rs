@@ -314,9 +314,7 @@ pub fn get_fproperty_array_prop_data(
 
     let array_elem_ty = match dim {
         2.. if prop_ty.is_none() => Some(ArrayElementType::Unknown),
-        2.. if prop_ty.unwrap().is_primitive() => {
-            Some(ArrayElementType::Primitive(prop_ty.unwrap()))
-        }
+        2.. if prop_ty.unwrap().is_primitive() => Some(ArrayElementType::Primitive),
         2.. => Some(ArrayElementType::Complex(todo!())),
         1 => None,
         _ => unreachable!(),

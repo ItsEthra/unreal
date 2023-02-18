@@ -4,10 +4,17 @@ use derive_more::Display;
 #[derive(Debug, Display, PartialEq, Eq, Hash, Clone)]
 pub struct IdName(pub String);
 
+impl From<String> for IdName {
+    #[inline]
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum ArrayElementType {
     /// Contain a primitive type
-    Primitive(PropertyType),
+    Primitive,
     Complex(IdName),
     Unknown,
 }
