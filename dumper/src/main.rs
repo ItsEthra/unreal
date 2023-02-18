@@ -5,7 +5,7 @@ use offsets::Offsets;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
 use std::{cell::RefCell, fs, io::Write, ops::Deref};
-use utils::{get_uobject_class, get_uobject_name};
+use utils::{get_uobject_full_name, get_uobject_name};
 
 mod names;
 mod objects;
@@ -94,11 +94,10 @@ fn main() -> Result<()> {
     let actor = gobjects
         .objs
         .iter()
-        .find(|o| get_uobject_name(&info, **o).unwrap().text == "Pawn")
+        .find(|o| get_uobject_name(&info, **o).unwrap() == "Pawn")
+        .copied()
         .unwrap();
-    let class = get_uobject_class(&info, *actor)?;
-    let name = get_uobject_name(&info, class)?;
-    dbg!(name);
+    dbg!(get_uobject_full_name(&info, actor)?);
 
     Ok(())
 }
