@@ -3,16 +3,17 @@
 use crate::{
     ptr::Ptr,
     utils::{
-        get_ffield_class, get_ffield_class_name, get_ffield_name, get_uenum_names,
-        get_uobject_code_name, get_uobject_full_name, get_uobject_name, get_uobject_package,
+        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_array_dim,
+        get_fproperty_element_size, get_fproperty_offset, get_uenum_names, get_uobject_code_name,
+        get_uobject_full_name, get_uobject_name, get_uobject_package,
         get_uscript_struct_children_props, is_uobject_inherits, iter_ffield_linked_list,
         sanitize_ident,
     },
     Info,
 };
 use eyre::Result;
-use log::{info, trace};
-use sourcer::{EnumGenerator, PackageGenerator};
+use log::{debug, info, trace};
+use sourcer::{EnumGenerator, PackageGenerator, PropertyType};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -94,10 +95,19 @@ impl Package {
     }
 
     fn process_script_struct(&self, info: &Info, uscript_struct_ptr: Ptr) -> Result<()> {
+        let _code_name = get_uobject_code_name(info, uscript_struct_ptr)?;
+
         let callback = |ffield_ptr: Ptr| {
-            let _name = get_ffield_name(info, ffield_ptr)?;
+            let _field_name = get_ffield_name(info, ffield_ptr)?;
             let class = get_ffield_class(info, ffield_ptr)?;
-            let _classname = get_ffield_class_name(info, class)?;
+            let classname = get_ffield_class_name(info, class)?;
+
+            let _dim = get_fproperty_array_dim(info, ffield_ptr)?;
+            let _elem_size = get_fproperty_element_size(info, ffield_ptr)?;
+            let _offset = get_fproperty_offset(info, ffield_ptr)?;
+
+            let prop_ty = PropertyType::from_str(&classname);
+            let prop_data = if _dim
 
             Ok(())
         };

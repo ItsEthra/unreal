@@ -4,10 +4,18 @@ use derive_more::Display;
 #[derive(Debug, Display, PartialEq, Eq, Hash, Clone)]
 pub struct IdName(pub String);
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum ArrayElementType {
+    /// Contain a primitive type
+    Primitive(PropertyType),
+    Complex(IdName),
+}
+
 /// Extra data for some property types.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum PropertyData {
-    Array { ty: IdName },
+    Array { ty: ArrayElementType, size: u32 },
+    Vector { ty: IdName },
     Map { key: IdName, value: IdName },
     Set { ty: IdName },
     Object { ty: IdName },
@@ -16,13 +24,14 @@ pub enum PropertyData {
     Struct { ty: IdName },
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 #[rustfmt::skip]
 pub enum PropertyType {
     Int8, Int16, Int32, Int64,
     UInt8, UInt16, UInt32, UInt64,
     Float32, Float64,
     Bool,    
-    Array, // TArray
+    Vector, // TArray
     Map, // TMap
     Set, // TSet
     Object, Class, // Pointer to object instance
@@ -34,6 +43,23 @@ pub enum PropertyType {
 }
 
 impl PropertyType {
+    pub fn primitive(&self) -> bool {
+        match self {
+            Self::Bool
+            | Self::Int8
+            | Self::Int16
+            | Self::Int32
+            | Self::Int64
+            | Self::UInt8
+            | Self::UInt16
+            | Self::UInt32
+            | Self::UInt64
+            | Self::Float32
+            | Self::Float64 => true,
+            _ => false,
+        }
+    }
+
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "BoolProperty" => Some(Self::Bool),
@@ -48,7 +74,7 @@ impl PropertyType {
             "UInt32Property" => Some(Self::UInt32),
             "UInt64Property" => Some(Self::UInt64),
             "ObjectProperty" => Some(Self::Object),
-            "ArrayProperty" => Some(Self::Array), // TArray
+            "ArrayProperty" => Some(Self::Vector),
             // "FieldPathProperty" => None,
             "ClassProperty" => Some(Self::Class),
             // "ClassPtrProperty" => Some(Self::ClassPtr),
