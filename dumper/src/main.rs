@@ -6,6 +6,7 @@ use offsets::Offsets;
 use package::dump_packages;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
+use sourcer::{lang::RustSdkGenerator, SdkGenerator};
 use std::{cell::RefCell, fs, io::Write, ops::Deref};
 
 mod macros;
@@ -98,8 +99,12 @@ fn main() -> Result<()> {
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
+    let mut sdkgen = RustSdkGenerator::new(".")?;
+
     for package in dump_packages(&info)? {
-        package.process(&info)?;
+        let pkg_cg = sdkgen.begin_package(&package.name)?;
+
+        package.process(&info, pkg_cg)?;
     }
 
     Ok(())

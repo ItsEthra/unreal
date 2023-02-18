@@ -149,10 +149,12 @@ dependencies = [
  "color-eyre",
  "env_logger",
  "eyre",
+ "libc",
  "log",
  "memflex",
  "once_cell",
  "paste",
+ "sourcer",
 ]
 
 [[package]]
