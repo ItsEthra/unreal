@@ -11,7 +11,7 @@ pub enum PropertyType {
 }
 
 pub trait EnumGenerator {
-    fn begin(&mut self, _name: &str, _full_name: &str) -> Result<()> {
+    fn begin(&mut self, _name: &str, _full_name: &str, _min_max: Option<(i64, i64)>) -> Result<()> {
         Ok(())
     }
 

@@ -35,15 +35,8 @@ impl Package {
         for obj in self.objects.iter().copied() {
             let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
 
-            let code_name = get_uobject_code_name(info, obj)?;
-            let full_name = get_uobject_full_name(info, obj)?;
-
             if is_a(enum_sc)? {
-                let mut enum_cg = codegen.add_enum()?;
-
-                enum_cg.begin(&code_name, &full_name)?;
-                self.process_enum(info, obj, &mut *enum_cg)?;
-                enum_cg.end()?;
+                self.process_enum(info, obj, &mut *codegen.add_enum()?)?;
             } else if is_a(script_struct_sc)? {
                 self.process_script_struct(info, obj)?;
             }
@@ -59,6 +52,7 @@ impl Package {
         enum_cg: &mut (dyn EnumGenerator + 'cg),
     ) -> Result<()> {
         let mut variants = HashSet::new();
+        let mut pairs = vec![];
 
         let callback = |name: Cow<str>, value: i64| {
             if name.ends_with("_MAX") {
@@ -72,13 +66,29 @@ impl Package {
                 name.into()
             };
 
-            enum_cg.add_variant(&name, value)?;
             variants.insert(name.to_string());
+            pairs.push((name.into_owned(), value));
 
             Ok(())
         };
 
         get_uenum_names(info, uenum_ptr, callback)?;
+
+        let code_name = get_uobject_code_name(info, uenum_ptr)?;
+        let full_name = get_uobject_full_name(info, uenum_ptr)?;
+
+        let min_max = pairs
+            .iter()
+            .map(|(_, k)| k)
+            .min()
+            .copied()
+            .zip(pairs.iter().map(|(_, k)| k).max().copied());
+
+        enum_cg.begin(&code_name, &full_name, min_max)?;
+        for (name, value) in pairs {
+            enum_cg.add_variant(&name, value)?;
+        }
+        enum_cg.end()?;
 
         Ok(())
     }
