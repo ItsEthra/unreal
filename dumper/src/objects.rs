@@ -73,7 +73,7 @@ fn dump_object(info: &Info, uobject_ptr: Ptr) -> Result<()> {
     let index = get_uobject_index(info, uobject_ptr)?;
 
     let mut f = info.objects_dump.borrow_mut();
-    writeln!(f, "UObject[{index}] - {}", name.text)?;
+    writeln!(f, "UObject[{index}] - {}", name)?;
 
     Ok(())
 }

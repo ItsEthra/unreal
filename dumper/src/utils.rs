@@ -1,21 +1,25 @@
 #![allow(dead_code)]
 
-use crate::{
-    names::{FName, FNameEntryId},
-    ptr::Ptr,
-    Info, OFFSETS,
-};
+use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
+use std::iter::successors;
 
-pub fn get_uobject_name(info: &Info, uobject_ptr: Ptr) -> Result<FName> {
+pub fn get_uobject_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
     let mut index = FNameEntryId::default();
     info.process.read_buf(
         uobject_ptr + OFFSETS.uobject.name + OFFSETS.fname.index,
         bytes_of_mut(&mut index),
     )?;
 
-    Ok(info.names.get(index))
+    let name = info.names.get(index);
+    let text = name
+        .text
+        .rsplit_once('/')
+        .map(|(_, tail)| tail)
+        .unwrap_or(&name.text);
+
+    Ok(text.to_owned())
 }
 
 pub fn get_uobject_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
@@ -50,4 +54,18 @@ pub fn get_uobject_outer(info: &Info, uobject_ptr: Ptr) -> Result<Option<Ptr>> {
     } else {
         Ok(Some(outer))
     }
+}
+
+pub fn get_uobject_full_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
+    let mut nodes = successors(Some(uobject_ptr), |obj| {
+        get_uobject_outer(info, *obj).ok().flatten()
+    })
+    .filter_map(|obj| get_uobject_name(info, obj).ok())
+    .collect::<Vec<_>>();
+    nodes.reverse();
+
+    let class = get_uobject_class(info, uobject_ptr)?;
+    let classname = get_uobject_name(info, class)?;
+
+    Ok(format!("{classname} {}", nodes.join(".")))
 }
