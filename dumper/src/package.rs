@@ -2,15 +2,12 @@
 
 use crate::{
     ptr::Ptr,
-    utils::{
-        get_uobject_code_name, get_uobject_full_name, get_uobject_name, get_uobject_package,
-        is_uobject_inherits,
-    },
+    utils::{get_uenum_names, get_uobject_name, get_uobject_package, is_uobject_inherits},
     Info,
 };
 use eyre::Result;
 use log::{info, trace};
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 pub struct Package {
     name: String,
@@ -33,8 +30,15 @@ impl Package {
     }
 
     fn process_enum(&self, info: &Info, uenum_ptr: Ptr) -> Result<()> {
-        let name = get_uobject_full_name(info, uenum_ptr)?;
-        trace!("Found {name:?} at {uenum_ptr:?}");
+        let callback = |name: Cow<str>, _value: i64| {
+            if name.ends_with("_MAX") {
+                return;
+            }
+
+            let _name = name.split_once("::").map(|(_, b)| b).unwrap_or(&name);
+        };
+
+        get_uenum_names(info, uenum_ptr, callback)?;
 
         Ok(())
     }
