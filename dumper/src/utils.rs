@@ -95,3 +95,20 @@ pub fn get_uobject_full_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
 
     Ok(format!("{classname} {}", nodes.join(".")))
 }
+
+// TODO: Replace characters that are not allowed in identifiers.
+pub fn get_uobject_code_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
+    let prefix = if is_uobject_inherits(info, uobject_ptr, info.objects.class_static_class(info)?)?
+    {
+        if is_uclass_inherits(info, uobject_ptr, info.objects.actor_static_class(info)?) {
+            'A'
+        } else {
+            'U'
+        }
+    } else {
+        'F'
+    };
+    let name = get_uobject_name(info, uobject_ptr)?;
+
+    Ok(format!("{prefix}{name}"))
+}

@@ -98,7 +98,7 @@ impl NameBlock {
         FName { header, text }
     }
 
-    fn for_each_name(&self, mut cb: impl FnMut(Cow<str>)) {
+    fn for_each_name(&self, mut callback: impl FnMut(Cow<str>)) {
         let mut pos = 0;
 
         while pos < self.0.len() {
@@ -108,7 +108,7 @@ impl NameBlock {
                 break;
             }
 
-            cb(name.text);
+            callback(name.text);
 
             pos += 2 + name.header.size();
         }
