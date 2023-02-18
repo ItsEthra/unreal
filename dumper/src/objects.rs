@@ -7,11 +7,13 @@ use crate::{
 use bytemuck::bytes_of_mut;
 use eyre::{eyre, Result};
 use log::{info, trace};
-use std::{iter::successors, mem::size_of};
+use std::{iter::successors, mem::size_of, rc::Rc};
 
+// Refcounted vector of all UObject pointers.
+#[derive(Clone)]
 pub struct GObjects {
     // Pointers to UObjectBase
-    pub objs: Vec<Ptr>,
+    pub objs: Rc<Vec<Ptr>>,
 }
 
 generate_gobjects_static_classes! {
@@ -113,7 +115,7 @@ pub fn dump_objects(info: &Info, gobjects: Ptr) -> Result<GObjects> {
 
     info!("Dumped {} objects", objs.len());
 
-    Ok(GObjects { objs })
+    Ok(GObjects { objs: objs.into() })
 }
 
 const NUM_ELEMENTS_PER_CHUNK: usize = 64 * 1024;
