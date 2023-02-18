@@ -52,7 +52,7 @@ pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
         info.process
             .read_buf(block_slot_ptr, bytes_of_mut(&mut block_ptr))?;
 
-        if block_ptr.0 == 0 {
+        if block_ptr.is_zero() {
             break;
         }
 

@@ -2,7 +2,11 @@
 
 use crate::{
     ptr::Ptr,
-    utils::{get_uenum_names, get_uobject_name, get_uobject_package, is_uobject_inherits},
+    utils::{
+        get_ffield_class, get_ffield_class_name, get_ffield_name, get_uenum_names,
+        get_uobject_name, get_uobject_package, get_uscript_struct_children_props,
+        is_uobject_inherits, iter_ffield_linked_list,
+    },
     Info,
 };
 use eyre::Result;
@@ -46,7 +50,19 @@ impl Package {
         Ok(())
     }
 
-    fn process_script_struct(&self, _info: &Info, _uscript_struct_ptr: Ptr) -> Result<()> {
+    fn process_script_struct(&self, info: &Info, uscript_struct_ptr: Ptr) -> Result<()> {
+        let callback = |ffield_ptr: Ptr| {
+            let _name = get_ffield_name(info, ffield_ptr)?;
+            let class = get_ffield_class(info, ffield_ptr)?;
+            let _classname = get_ffield_class_name(info, class)?;
+
+            Ok(())
+        };
+
+        if let Some(props) = get_uscript_struct_children_props(info, uscript_struct_ptr)? {
+            iter_ffield_linked_list(info, props, callback)?;
+        }
+
         Ok(())
     }
 }

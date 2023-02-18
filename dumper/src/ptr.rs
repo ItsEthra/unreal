@@ -9,6 +9,22 @@ use std::{
 #[repr(transparent)]
 pub struct Ptr(pub usize);
 
+impl Ptr {
+    #[inline]
+    pub fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+
+    #[inline]
+    pub fn to_option(self) -> Option<Ptr> {
+        if self.is_zero() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+}
+
 impl Add<usize> for Ptr {
     type Output = Self;
 
