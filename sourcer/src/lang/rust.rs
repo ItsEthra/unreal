@@ -6,15 +6,15 @@ use std::{
 };
 
 struct EnumGen<'a> {
-    name: String,
     pkg: &'a mut Crate,
 }
 
 impl<'a> EnumGenerator for EnumGen<'a> {
-    fn begin(&mut self) -> Result<()> {
+    fn begin(&mut self, name: &str, full_name: &str) -> Result<()> {
+        writeln!(self.pkg.librs, "// Full name: {full_name}")?;
         writeln!(self.pkg.librs, "memflex::bitflags! {{")?;
         writeln!(self.pkg.librs, "\t#[repr(transparent)]")?;
-        writeln!(self.pkg.librs, "\tpub struct {} : u32 {{", self.name)?;
+        writeln!(self.pkg.librs, "\tpub struct {name} : i32 {{")?;
 
         Ok(())
     }
@@ -26,7 +26,7 @@ impl<'a> EnumGenerator for EnumGen<'a> {
     }
 
     fn end(&mut self) -> Result<()> {
-        writeln!(self.pkg.librs, "\t}}\n}}")?;
+        writeln!(self.pkg.librs, "\t}}\n}}\n")?;
 
         Ok(())
     }
@@ -34,11 +34,8 @@ impl<'a> EnumGenerator for EnumGen<'a> {
 
 struct PackageGen(Crate);
 impl PackageGenerator for PackageGen {
-    fn add_enum<'new>(&'new mut self, name: &str) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
-        Ok(Box::new(EnumGen {
-            name: name.to_owned(),
-            pkg: &mut self.0,
-        }))
+    fn add_enum<'new>(&'new mut self) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
+        Ok(Box::new(EnumGen { pkg: &mut self.0 }))
     }
 }
 
@@ -97,6 +94,8 @@ impl SdkGenerator for RustSdkGenerator {
             for warn in WARNINGS {
                 writeln!(package.librs, "#![allow({warn})]")?;
             }
+
+            writeln!(package.librs, "")?;
         }
 
         Ok(Box::new(PackageGen(package)))

@@ -11,7 +11,7 @@ pub enum PropertyType {
 }
 
 pub trait EnumGenerator {
-    fn begin(&mut self) -> Result<()> {
+    fn begin(&mut self, _name: &str, _full_name: &str) -> Result<()> {
         Ok(())
     }
 
@@ -27,7 +27,7 @@ pub trait PackageGenerator {
         Ok(())
     }
 
-    fn add_enum<'new>(&'new mut self, name: &str) -> Result<Box<dyn EnumGenerator + 'new>>;
+    fn add_enum<'new>(&'new mut self) -> Result<Box<dyn EnumGenerator + 'new>>;
 
     fn end(&mut self) -> Result<()> {
         Ok(())

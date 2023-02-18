@@ -4,15 +4,19 @@ use crate::{
     ptr::Ptr,
     utils::{
         get_ffield_class, get_ffield_class_name, get_ffield_name, get_uenum_names,
-        get_uobject_name, get_uobject_package, get_uscript_struct_children_props,
-        is_uobject_inherits, iter_ffield_linked_list,
+        get_uobject_code_name, get_uobject_full_name, get_uobject_name, get_uobject_package,
+        get_uscript_struct_children_props, is_uobject_inherits, iter_ffield_linked_list,
+        sanitize_ident,
     },
     Info,
 };
 use eyre::Result;
 use log::{info, trace};
 use sourcer::{EnumGenerator, PackageGenerator};
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 pub struct Package {
     pub name: String,
@@ -31,10 +35,13 @@ impl Package {
         for obj in self.objects.iter().copied() {
             let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
 
-            if is_a(enum_sc)? {
-                let mut enum_cg = codegen.add_enum(&get_uobject_name(info, obj)?)?;
+            let code_name = get_uobject_code_name(info, obj)?;
+            let full_name = get_uobject_full_name(info, obj)?;
 
-                enum_cg.begin()?;
+            if is_a(enum_sc)? {
+                let mut enum_cg = codegen.add_enum()?;
+
+                enum_cg.begin(&code_name, &full_name)?;
                 self.process_enum(info, obj, &mut *enum_cg)?;
                 enum_cg.end()?;
             } else if is_a(script_struct_sc)? {
@@ -51,13 +58,22 @@ impl Package {
         uenum_ptr: Ptr,
         enum_cg: &mut (dyn EnumGenerator + 'cg),
     ) -> Result<()> {
+        let mut variants = HashSet::new();
+
         let callback = |name: Cow<str>, value: i64| {
             if name.ends_with("_MAX") {
                 return Ok(());
             }
 
-            let name = name.split_once("::").map(|(_, b)| b).unwrap_or(&name);
-            enum_cg.add_variant(name, value)?;
+            let name = sanitize_ident(name.split_once("::").map(|(_, b)| b).unwrap_or(&name));
+            let name: Cow<str> = if variants.contains(&*name) {
+                format!("{name}_{value}").into()
+            } else {
+                name.into()
+            };
+
+            enum_cg.add_variant(&name, value)?;
+            variants.insert(name.to_string());
 
             Ok(())
         };

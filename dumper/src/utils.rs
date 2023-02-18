@@ -223,3 +223,12 @@ pub fn get_uobject_code_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
 
     Ok(format!("{prefix}{name}"))
 }
+
+pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
+    let mut ident = ident.into();
+    if ident == "Self" {
+        ident = "This".into();
+    }
+
+    ident
+}
