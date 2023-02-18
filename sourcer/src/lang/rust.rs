@@ -41,8 +41,9 @@ impl<'a> EnumGenerator for EnumGen<'a> {
 
 struct ScriptStructGen<'a>(&'a mut Crate);
 impl<'a> ScriptStructGenerator for ScriptStructGen<'a> {
-    fn begin(&mut self, name: &str, id_name: IdName) -> Result<()> {
+    fn begin(&mut self, name: &str, id_name: IdName, unaligned_size: usize) -> Result<()> {
         writeln!(self.0.librs, "// Full name: {id_name}")?;
+        writeln!(self.0.librs, "// Unaligned size: 0x{unaligned_size:X}")?;
         writeln!(self.0.librs, "memflex::makestruct! {{")?;
         // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
         writeln!(self.0.librs, "\tpub struct {name} {{")?;

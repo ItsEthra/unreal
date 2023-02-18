@@ -5,9 +5,8 @@ use crate::{
     utils::{
         get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_array_dim,
         get_fproperty_element_size, get_fproperty_offset, get_uenum_names, get_uobject_code_name,
-        get_uobject_full_name, get_uobject_name, get_uobject_package,
-        get_uscript_struct_children_props, is_uobject_inherits, iter_ffield_linked_list,
-        sanitize_ident,
+        get_uobject_full_name, get_uobject_name, get_uobject_package, get_ustruct_children_props,
+        get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
@@ -105,6 +104,8 @@ impl Package {
         let struct_name = get_uobject_code_name(info, uscript_struct_ptr)?;
         let full_name = get_uobject_full_name(info, uscript_struct_ptr)?;
 
+        let unaligned_size = get_ustruct_size(info, uscript_struct_ptr)?;
+
         let callback = |ffield_ptr: Ptr| {
             let _field_name = get_ffield_name(info, ffield_ptr)?;
             let class = get_ffield_class(info, ffield_ptr)?;
@@ -119,9 +120,9 @@ impl Package {
             Ok(())
         };
 
-        sstruct_cg.begin(&struct_name, IdName(full_name))?;
+        sstruct_cg.begin(&struct_name, IdName(full_name), unaligned_size)?;
 
-        if let Some(props) = get_uscript_struct_children_props(info, uscript_struct_ptr)? {
+        if let Some(props) = get_ustruct_children_props(info, uscript_struct_ptr)? {
             iter_ffield_linked_list(info, props, callback)?;
         }
 

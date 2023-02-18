@@ -152,7 +152,7 @@ pub fn iter_ffield_linked_list(
     Ok(())
 }
 
-pub fn get_uscript_struct_children_props(info: &Info, uscript_struct: Ptr) -> Result<Option<Ptr>> {
+pub fn get_ustruct_children_props(info: &Info, uscript_struct: Ptr) -> Result<Option<Ptr>> {
     let mut ffield_ptr = Ptr(0);
     info.process.read_buf(
         uscript_struct + OFFSETS.ustruct.children_props,
@@ -252,6 +252,16 @@ pub fn get_fproperty_element_size(info: &Info, fproperty_ptr: Ptr) -> Result<usi
     )?;
 
     Ok(elem_size as usize)
+}
+
+pub fn get_ustruct_size(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
+    let mut size = 0u32;
+    info.process.read_buf(
+        ustruct_ptr + OFFSETS.ustruct.props_size,
+        bytes_of_mut(&mut size),
+    )?;
+
+    Ok(size as usize)
 }
 
 pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
