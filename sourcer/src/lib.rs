@@ -4,9 +4,11 @@ pub mod lang;
 
 mod property;
 pub use property::*;
+mod deps;
+pub use deps::*;
 
 pub trait EnumGenerator {
-    fn begin(&mut self, _name: &str, _full_name: &str, _min_max: Option<(i64, i64)>) -> Result<()> {
+    fn begin(&mut self, _name: &str, _id_name: IdName, _min_max: Option<(i64, i64)>) -> Result<()> {
         Ok(())
     }
 
