@@ -2,7 +2,7 @@
 
 use crate::{
     ptr::Ptr,
-    utils::{get_uobject_name, get_uobject_package, is_uobject_inherits},
+    utils::{get_uobject_full_name, get_uobject_name, get_uobject_package, is_uobject_inherits},
     Info,
 };
 use eyre::Result;
@@ -12,6 +12,29 @@ use std::collections::HashMap;
 pub struct Package {
     name: String,
     objects: Vec<Ptr>,
+}
+
+impl Package {
+    pub fn process(&self, info: &Info) -> Result<()> {
+        let enum_sc = info.objects.enum_static_class(info)?;
+
+        for obj in self.objects.iter().copied() {
+            let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
+
+            if is_a(enum_sc)? {
+                self.process_enum(info, obj)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn process_enum(&self, info: &Info, uenum_ptr: Ptr) -> Result<()> {
+        let name = get_uobject_full_name(info, uenum_ptr)?;
+        trace!("Found {name:?} at {uenum_ptr:?}");
+
+        Ok(())
+    }
 }
 
 pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
@@ -34,7 +57,8 @@ pub fn dump_packages(info: &Info) -> Result<Vec<Package>> {
             trace!("Found new package {package_name}");
         }
 
-        let _classes = map.entry(package_name).or_insert(vec![]);
+        let classes = map.entry(package_name).or_insert(vec![]);
+        classes.push(obj);
     }
 
     info!("Found {} packages", map.len());
