@@ -88,7 +88,7 @@ pub fn get_uobject_outer(info: &Info, uobject_ptr: Ptr) -> Result<Option<Ptr>> {
 pub fn get_uenum_names<'n>(
     info: &'n Info,
     uenum_ptr: Ptr,
-    mut callback: impl FnMut(Cow<'n, str>, i64),
+    mut callback: impl FnMut(Cow<'n, str>, i64) -> Result<()>,
 ) -> Result<()> {
     unsafe {
         iter_tarray::<(FNameEntryId, i64)>(
@@ -107,7 +107,7 @@ pub fn get_uenum_names<'n>(
 pub unsafe fn iter_tarray<T>(
     info: &Info,
     tarray_ptr: Ptr,
-    mut callback: impl FnMut(&T),
+    mut callback: impl FnMut(&T) -> Result<()>,
 ) -> Result<()> {
     let mut len = 0u32;
     info.process
@@ -127,7 +127,7 @@ pub unsafe fn iter_tarray<T>(
         info.process
             .read_val(slot_ptr, val.as_mut_ptr() as _, size_of::<T>())?;
 
-        callback(val.assume_init_ref());
+        callback(val.assume_init_ref())?;
     }
 
     Ok(())

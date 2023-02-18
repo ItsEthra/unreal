@@ -22,18 +22,29 @@ pub trait EnumGenerator {
     }
 }
 
-pub trait PackageGenerator<'a> {
-    fn add_enum(&'a mut self, name: &str) -> Result<Box<dyn EnumGenerator + 'a>>;
+pub trait PackageGenerator {
+    fn begin(&mut self) -> Result<()> {
+        Ok(())
+    }
 
-    fn end(&mut self) {}
+    fn add_enum<'new>(&'new mut self, name: &str) -> Result<Box<dyn EnumGenerator + 'new>>;
+
+    fn end(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 pub trait SdkGenerator {
-    fn new(path: &Path) -> Result<Self>
+    fn new(path: impl AsRef<Path>) -> Result<Self>
     where
         Self: Sized;
 
-    fn begin_package<'a>(&'a mut self, name: &str) -> Result<Box<dyn PackageGenerator + 'a>>;
+    fn begin_package<'sdk: 'pkg, 'pkg>(
+        &'sdk mut self,
+        name: &str,
+    ) -> Result<Box<dyn PackageGenerator + 'pkg>>;
 
-    fn end(&mut self) {}
+    fn end(&mut self) -> Result<()> {
+        Ok(())
+    }
 }

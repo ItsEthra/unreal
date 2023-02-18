@@ -1,6 +1,6 @@
 use crate::{EnumGenerator, PackageGenerator, SdkGenerator};
 use std::{
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{Result, Write},
     path::{Path, PathBuf},
 };
@@ -33,8 +33,8 @@ impl<'a> EnumGenerator for EnumGen<'a> {
 }
 
 struct PackageGen(Crate);
-impl<'a> PackageGenerator<'a> for PackageGen {
-    fn add_enum(&'a mut self, name: &str) -> Result<Box<dyn crate::EnumGenerator + 'a>> {
+impl PackageGenerator for PackageGen {
+    fn add_enum<'new>(&'new mut self, name: &str) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
         Ok(Box::new(EnumGen {
             name: name.to_owned(),
             pkg: &mut self.0,
@@ -48,7 +48,10 @@ pub struct RustSdkGenerator {
 }
 
 impl SdkGenerator for RustSdkGenerator {
-    fn begin_package<'a>(&'a mut self, name: &str) -> Result<Box<dyn PackageGenerator + 'a>> {
+    fn begin_package<'sdk: 'pkg, 'pkg>(
+        &'sdk mut self,
+        name: &str,
+    ) -> Result<Box<dyn PackageGenerator + 'pkg>> {
         // Add to workspace
         {
             writeln!(self.workspace.toml, "[workspace.dependencies.{name}]")?;
@@ -64,20 +67,47 @@ impl SdkGenerator for RustSdkGenerator {
         }
 
         let crate_path = self.crates.join(name);
+        fs::create_dir_all(&crate_path)?;
 
-        let package = Crate {
+        let mut package = Crate {
             toml: open_file(crate_path.join("Cargo.toml"))?,
-            librs: open_file(crate_path.join("Cargo.toml"))?,
+            librs: open_file(crate_path.join("lib.rs"))?,
         };
+
+        // Declare package in Cargo.toml
+        {
+            writeln!(package.toml, "[package]")?;
+            writeln!(package.toml, "name = \"{name}\"")?;
+            writeln!(package.toml, "version = \"0.1.0\"")?;
+            writeln!(package.toml, "edition = \"2021\"\n")?;
+            writeln!(package.toml, "[lib]")?;
+            writeln!(package.toml, "path = \"lib.rs\"\n")?;
+            writeln!(package.toml, "[dependencies]")?;
+            writeln!(package.toml, "memflex.workspace = true")?;
+        }
+
+        // Write prelude to lib.rs
+        {
+            const WARNINGS: &[&str] = &[
+                "non_camel_case_types",
+                "non_snake_case",
+                "non_upper_case_globals",
+            ];
+
+            for warn in WARNINGS {
+                writeln!(package.librs, "#![allow({warn})]")?;
+            }
+        }
 
         Ok(Box::new(PackageGen(package)))
     }
 
-    fn new(path: &Path) -> Result<Self>
+    fn new(path: impl AsRef<Path>) -> Result<Self>
     where
         Self: Sized,
     {
-        let path = path.join("usdk");
+        let path = path.as_ref().join("usdk");
+        fs::create_dir_all(&path)?;
 
         let mut toml = open_file(path.join("Cargo.toml"))?;
         let librs = open_file(path.join("lib.rs"))?;
@@ -93,7 +123,7 @@ impl SdkGenerator for RustSdkGenerator {
 }
 
 fn open_file(path: impl AsRef<Path>) -> Result<File> {
-    OpenOptions::new().create(true).open(path)
+    OpenOptions::new().create(true).write(true).open(path)
 }
 
 struct Crate {

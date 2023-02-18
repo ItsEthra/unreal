@@ -11,15 +11,20 @@ use crate::{
 };
 use eyre::Result;
 use log::{info, trace};
+use sourcer::{EnumGenerator, PackageGenerator};
 use std::{borrow::Cow, collections::HashMap};
 
 pub struct Package {
-    name: String,
+    pub name: String,
     objects: Vec<Ptr>,
 }
 
 impl Package {
-    pub fn process(&self, info: &Info) -> Result<()> {
+    pub fn process<'pkg>(
+        &self,
+        info: &Info,
+        mut codegen: Box<dyn PackageGenerator + 'pkg>,
+    ) -> Result<()> {
         let enum_sc = info.objects.enum_static_class(info)?;
         let script_struct_sc = info.objects.script_struct_static_class(info)?;
 
@@ -27,7 +32,11 @@ impl Package {
             let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
 
             if is_a(enum_sc)? {
-                self.process_enum(info, obj)?;
+                let mut enum_cg = codegen.add_enum(&get_uobject_name(info, obj)?)?;
+
+                enum_cg.begin()?;
+                self.process_enum(info, obj, &mut *enum_cg)?;
+                enum_cg.end()?;
             } else if is_a(script_struct_sc)? {
                 self.process_script_struct(info, obj)?;
             }
@@ -36,13 +45,21 @@ impl Package {
         Ok(())
     }
 
-    fn process_enum(&self, info: &Info, uenum_ptr: Ptr) -> Result<()> {
-        let callback = |name: Cow<str>, _value: i64| {
+    fn process_enum<'cg>(
+        &self,
+        info: &Info,
+        uenum_ptr: Ptr,
+        enum_cg: &mut (dyn EnumGenerator + 'cg),
+    ) -> Result<()> {
+        let callback = |name: Cow<str>, value: i64| {
             if name.ends_with("_MAX") {
-                return;
+                return Ok(());
             }
 
-            let _name = name.split_once("::").map(|(_, b)| b).unwrap_or(&name);
+            let name = name.split_once("::").map(|(_, b)| b).unwrap_or(&name);
+            enum_cg.add_variant(name, value)?;
+
+            Ok(())
         };
 
         get_uenum_names(info, uenum_ptr, callback)?;
