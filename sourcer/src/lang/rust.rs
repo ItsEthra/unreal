@@ -1,14 +1,11 @@
-use crate::{EnumGenerator, IdName, PackageGenerator, SdkGenerator};
+use crate::{EnumGenerator, IdName, PackageGenerator, ScriptStructGenerator, SdkGenerator};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Result, Write},
     path::{Path, PathBuf},
 };
 
-struct EnumGen<'a> {
-    pkg: &'a mut Crate,
-}
-
+struct EnumGen<'a>(&'a mut Crate);
 impl<'a> EnumGenerator for EnumGen<'a> {
     fn begin(&mut self, name: &str, id_name: IdName, min_max: Option<(i64, i64)>) -> Result<()> {
         let ty = if let Some((min, max)) = min_max {
@@ -21,22 +18,51 @@ impl<'a> EnumGenerator for EnumGen<'a> {
             "i32"
         };
 
-        writeln!(self.pkg.librs, "// Full name: {id_name}")?;
-        writeln!(self.pkg.librs, "memflex::bitflags! {{")?;
-        writeln!(self.pkg.librs, "\t#[repr(transparent)]")?;
-        writeln!(self.pkg.librs, "\tpub struct {name} : {ty} {{")?;
+        writeln!(self.0.librs, "// Full name: {id_name}")?;
+        writeln!(self.0.librs, "memflex::bitflags! {{")?;
+        writeln!(self.0.librs, "\t#[repr(transparent)]")?;
+        writeln!(self.0.librs, "\tpub struct {name} : {ty} {{")?;
 
         Ok(())
     }
 
-    fn add_variant(&mut self, variant: &str, value: i64) -> Result<()> {
-        writeln!(self.pkg.librs, "\t\tconst {variant} = {value};")?;
+    fn append_variant(&mut self, variant: &str, value: i64) -> Result<()> {
+        writeln!(self.0.librs, "\t\tconst {variant} = {value};")?;
 
         Ok(())
     }
 
     fn end(&mut self) -> Result<()> {
-        writeln!(self.pkg.librs, "\t}}\n}}\n")?;
+        writeln!(self.0.librs, "\t}}\n}}\n")?;
+
+        Ok(())
+    }
+}
+
+struct ScriptStructGen<'a>(&'a mut Crate);
+impl<'a> ScriptStructGenerator for ScriptStructGen<'a> {
+    fn begin(&mut self, name: &str, id_name: IdName) -> Result<()> {
+        writeln!(self.0.librs, "// Full name: {id_name}")?;
+        writeln!(self.0.librs, "memflex::makestruct! {{")?;
+        // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
+        writeln!(self.0.librs, "\tpub struct {name} {{")?;
+
+        Ok(())
+    }
+
+    fn append_field(
+        &mut self,
+        _field_name: &str,
+        _field_ty: Option<crate::PropertyType>,
+        _field_data: Option<crate::PropertyData>,
+        _elem_size: usize,
+        _offset: usize,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn end(&mut self) -> Result<()> {
+        writeln!(self.0.librs, "\t}}\n}}\n")?;
 
         Ok(())
     }
@@ -45,7 +71,13 @@ impl<'a> EnumGenerator for EnumGen<'a> {
 struct PackageGen(Crate);
 impl PackageGenerator for PackageGen {
     fn add_enum<'new>(&'new mut self) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
-        Ok(Box::new(EnumGen { pkg: &mut self.0 }))
+        Ok(Box::new(EnumGen(&mut self.0)))
+    }
+
+    fn add_script_struct<'new>(
+        &'new mut self,
+    ) -> Result<Box<dyn crate::ScriptStructGenerator + 'new>> {
+        Ok(Box::new(ScriptStructGen(&mut self.0)))
     }
 }
 

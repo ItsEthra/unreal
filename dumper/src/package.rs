@@ -13,7 +13,9 @@ use crate::{
 };
 use eyre::Result;
 use log::{info, trace};
-use sourcer::{DependencyTree, EnumGenerator, IdName, PackageGenerator, PropertyType};
+use sourcer::{
+    DependencyTree, EnumGenerator, IdName, PackageGenerator, PropertyType, ScriptStructGenerator,
+};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -39,7 +41,7 @@ impl Package {
             if is_a(enum_sc)? {
                 self.process_enum(info, obj, &mut *codegen.add_enum()?)?;
             } else if is_a(script_struct_sc)? {
-                self.process_script_struct(info, obj)?;
+                self.process_script_struct(info, obj, &mut *codegen.add_script_struct()?)?;
             }
         }
 
@@ -87,15 +89,21 @@ impl Package {
 
         enum_cg.begin(&code_name, IdName(full_name), min_max)?;
         for (name, value) in pairs {
-            enum_cg.add_variant(&name, value)?;
+            enum_cg.append_variant(&name, value)?;
         }
         enum_cg.end()?;
 
         Ok(())
     }
 
-    fn process_script_struct(&self, info: &Info, uscript_struct_ptr: Ptr) -> Result<()> {
-        let _code_name = get_uobject_code_name(info, uscript_struct_ptr)?;
+    fn process_script_struct<'cg>(
+        &self,
+        info: &Info,
+        uscript_struct_ptr: Ptr,
+        sstruct_cg: &mut (dyn ScriptStructGenerator + 'cg),
+    ) -> Result<()> {
+        let struct_name = get_uobject_code_name(info, uscript_struct_ptr)?;
+        let full_name = get_uobject_full_name(info, uscript_struct_ptr)?;
 
         let callback = |ffield_ptr: Ptr| {
             let _field_name = get_ffield_name(info, ffield_ptr)?;
@@ -111,9 +119,13 @@ impl Package {
             Ok(())
         };
 
+        sstruct_cg.begin(&struct_name, IdName(full_name))?;
+
         if let Some(props) = get_uscript_struct_children_props(info, uscript_struct_ptr)? {
             iter_ffield_linked_list(info, props, callback)?;
         }
+
+        sstruct_cg.end()?;
 
         Ok(())
     }
