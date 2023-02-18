@@ -11,7 +11,7 @@ use std::mem::size_of;
 #[allow(dead_code)]
 pub struct GObjects {
     // Pointers to UObjectBase
-    objs: Vec<Ptr>,
+    pub objs: Vec<Ptr>,
 }
 
 pub fn dump_objects(info: &Info, gobjects: Ptr) -> Result<GObjects> {
