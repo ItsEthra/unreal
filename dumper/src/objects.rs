@@ -1,17 +1,51 @@
 use crate::{
     ptr::Ptr,
-    utils::{get_uobject_index, get_uobject_name},
+    utils::{get_uobject_class, get_uobject_index, get_uobject_name, get_uobject_outer},
     Info, OFFSETS,
 };
 use bytemuck::bytes_of_mut;
-use eyre::Result;
+use eyre::{eyre, Result};
 use log::{info, trace};
-use std::mem::size_of;
+use std::{iter::successors, mem::size_of};
 
-#[allow(dead_code)]
 pub struct GObjects {
     // Pointers to UObjectBase
     pub objs: Vec<Ptr>,
+}
+
+#[allow(dead_code)]
+impl GObjects {
+    pub fn find_by_full_name(&self, info: &Info, full_name: &str) -> Result<Option<Ptr>> {
+        let (expected_class_name, expected_prefixed_name) = full_name
+            .split_once(' ')
+            .map(|(head, tail)| (head, tail.rsplit('.')))
+            .ok_or(eyre!(
+                "Full name must be in the format of `Class Engine.Pawn`"
+            ))?;
+
+        // Implementing it manually instead of using `get_uobject_full_name` should be faster
+        // because this require less allocations.
+        for obj in self.objs.iter().copied() {
+            let class = get_uobject_class(info, obj)?;
+            let class_name = get_uobject_name(info, class)?;
+
+            if class_name != expected_class_name {
+                continue;
+            }
+
+            if successors(Some(obj), |obj| {
+                get_uobject_outer(info, *obj).ok().flatten()
+            })
+            .filter_map(|obj| get_uobject_name(info, obj).ok())
+            .zip(expected_prefixed_name.clone())
+            .all(|(a, b)| a == b)
+            {
+                return Ok(Some(obj));
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 pub fn dump_objects(info: &Info, gobjects: Ptr) -> Result<GObjects> {
