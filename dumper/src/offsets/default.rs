@@ -37,8 +37,8 @@ pub const DEFAULT: Offsets = Offsets {
         name: 0x28,
     },
     fproperty: OfFProperty {
-        array_dim: 0x38,
-        element_size: 0x3C,
+        array_dim: 0x34,
+        element_size: 0x38,
         prop_flags: 0x40,
         offset: 0x4C,
         size: 0x78,

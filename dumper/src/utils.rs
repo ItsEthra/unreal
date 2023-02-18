@@ -224,6 +224,36 @@ pub fn get_uobject_code_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
     Ok(format!("{prefix}{name}"))
 }
 
+pub fn get_fproperty_array_dim(info: &Info, fproperty_ptr: Ptr) -> Result<u32> {
+    let mut dim = 0u32;
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.array_dim,
+        bytes_of_mut(&mut dim),
+    )?;
+
+    Ok(dim)
+}
+
+pub fn get_fproperty_offset(info: &Info, fproperty_ptr: Ptr) -> Result<usize> {
+    let mut offset = 0u32;
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.offset,
+        bytes_of_mut(&mut offset),
+    )?;
+
+    Ok(offset as usize)
+}
+
+pub fn get_fproperty_element_size(info: &Info, fproperty_ptr: Ptr) -> Result<usize> {
+    let mut elem_size = 0u32;
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.element_size,
+        bytes_of_mut(&mut elem_size),
+    )?;
+
+    Ok(elem_size as usize)
+}
+
 pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
     let mut ident = ident.into();
     if ident == "Self" {
