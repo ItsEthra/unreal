@@ -151,6 +151,7 @@ dependencies = [
  "eyre",
  "log",
  "memflex",
+ "once_cell",
  "paste",
 ]
 

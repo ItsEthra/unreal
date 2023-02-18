@@ -1,4 +1,5 @@
 use crate::{
+    generate_gobjects_static_classes,
     ptr::Ptr,
     utils::{get_uobject_class, get_uobject_index, get_uobject_name, get_uobject_outer},
     Info, OFFSETS,
@@ -11,6 +12,17 @@ use std::{iter::successors, mem::size_of};
 pub struct GObjects {
     // Pointers to UObjectBase
     pub objs: Vec<Ptr>,
+}
+
+generate_gobjects_static_classes! {
+    actor_static_class, "Class Engine.Actor",
+    uobject_static_class, "Class CoreUObject.Object",
+    field_static_class, "Class CoreUObject.Field",
+    property_static_class, "Class CoreUObject.Property",
+    struct_static_class, "Class CoreUObject.Struct",
+    enum_static_class, "Class CoreUObject.Enum",
+    class_static_class, "Class CoreUObject.Class",
+    function_static_class, "Class CoreUObject.Function",
 }
 
 #[allow(dead_code)]
