@@ -22,6 +22,32 @@ pub fn get_uobject_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
     Ok(text.to_owned())
 }
 
+pub fn is_uclass_inherits(info: &Info, uclass_ptr: Ptr, static_class: Ptr) -> bool {
+    successors(Some(uclass_ptr), |class| {
+        get_uclass_super(info, *class).ok().flatten()
+    })
+    .any(|class| class == static_class)
+}
+
+pub fn is_uobject_inherits(info: &Info, uobject_ptr: Ptr, static_class: Ptr) -> Result<bool> {
+    let class = get_uobject_class(info, uobject_ptr)?;
+    Ok(is_uclass_inherits(info, class, static_class))
+}
+
+pub fn get_uclass_super(info: &Info, uclass_ptr: Ptr) -> Result<Option<Ptr>> {
+    let mut parent = Ptr(0);
+    info.process.read_buf(
+        uclass_ptr + OFFSETS.ustruct.super_struct,
+        bytes_of_mut(&mut parent),
+    )?;
+
+    if parent.0 == 0 {
+        Ok(None)
+    } else {
+        Ok(Some(parent))
+    }
+}
+
 pub fn get_uobject_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
     let mut index = 0u32;
     info.process.read_buf(

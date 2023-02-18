@@ -1,6 +1,7 @@
 use argh::FromArgs;
 use eyre::Result;
 use names::GNames;
+use objects::GObjects;
 use offsets::Offsets;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
@@ -16,9 +17,9 @@ mod utils;
 
 const OFFSETS: &Offsets = &offsets::DEFAULT;
 
-pub struct GNamesProxy(Option<GNames>);
-impl Deref for GNamesProxy {
-    type Target = GNames;
+pub struct GlobalProxy<T>(Option<T>);
+impl<T> Deref for GlobalProxy<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         self.0.as_ref().expect("Cell was not set")
@@ -27,7 +28,8 @@ impl Deref for GNamesProxy {
 
 pub struct Info {
     process: Box<dyn Process>,
-    names: GNamesProxy,
+    names: GlobalProxy<GNames>,
+    objects: GlobalProxy<GObjects>,
 
     names_dump: RefCell<Box<dyn Write>>,
     objects_dump: RefCell<Box<dyn Write>>,
@@ -66,7 +68,8 @@ fn main() -> Result<()> {
 
     let mut info = Info {
         process: Box::new(ExternalProcess::new(args.pid)?),
-        names: GNamesProxy(None),
+        names: GlobalProxy(None),
+        objects: GlobalProxy(None),
 
         names_dump: (Box::new(names_dump) as Box<dyn Write>).into(),
         objects_dump: (Box::new(objects_dump) as Box<dyn Write>).into(),
@@ -90,7 +93,8 @@ fn main() -> Result<()> {
     let gnames = names::dump_names(&info, names_ptr)?;
     info.names.0 = Some(gnames);
 
-    let _gobjects = objects::dump_objects(&info, objects_ptr)?;
+    let gobjects = objects::dump_objects(&info, objects_ptr)?;
+    info.objects.0 = Some(gobjects);
 
     Ok(())
 }
