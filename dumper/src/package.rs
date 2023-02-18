@@ -5,15 +5,17 @@ use crate::{
     utils::{
         get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_array_dim,
         get_fproperty_element_size, get_fproperty_offset, get_uenum_names, get_uobject_code_name,
-        get_uobject_full_name, get_uobject_name, get_uobject_package, get_ustruct_children_props,
-        get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
+        get_uobject_full_name, get_uobject_name, get_uobject_package, get_ustruct_alignment,
+        get_ustruct_children_props, get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list,
+        sanitize_ident,
     },
     Info,
 };
 use eyre::Result;
 use log::{info, trace};
 use sourcer::{
-    DependencyTree, EnumGenerator, IdName, PackageGenerator, PropertyType, ScriptStructGenerator,
+    DependencyTree, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
+    ScriptStructGenerator,
 };
 use std::{
     borrow::Cow,
@@ -104,7 +106,8 @@ impl Package {
         let struct_name = get_uobject_code_name(info, uscript_struct_ptr)?;
         let full_name = get_uobject_full_name(info, uscript_struct_ptr)?;
 
-        let unaligned_size = get_ustruct_size(info, uscript_struct_ptr)?;
+        let size = get_ustruct_size(info, uscript_struct_ptr)?;
+        let alignment = get_ustruct_alignment(info, uscript_struct_ptr)?;
 
         let callback = |ffield_ptr: Ptr| {
             let _field_name = get_ffield_name(info, ffield_ptr)?;
@@ -120,7 +123,7 @@ impl Package {
             Ok(())
         };
 
-        sstruct_cg.begin(&struct_name, IdName(full_name), unaligned_size)?;
+        sstruct_cg.begin(&struct_name, IdName(full_name), Layout { size, alignment })?;
 
         if let Some(props) = get_ustruct_children_props(info, uscript_struct_ptr)? {
             iter_ffield_linked_list(info, props, callback)?;

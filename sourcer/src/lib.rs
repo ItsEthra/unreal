@@ -8,7 +8,7 @@ mod deps;
 pub use deps::*;
 
 pub trait ScriptStructGenerator {
-    fn begin(&mut self, name: &str, id_name: IdName, unaligned_size: usize) -> Result<()>;
+    fn begin(&mut self, name: &str, id_name: IdName, layout: Layout) -> Result<()>;
 
     fn append_field(
         &mut self,
@@ -60,4 +60,9 @@ pub trait SdkGenerator {
     fn end(&mut self) -> Result<()> {
         Ok(())
     }
+}
+
+pub struct Layout {
+    pub size: usize,
+    pub alignment: usize,
 }
