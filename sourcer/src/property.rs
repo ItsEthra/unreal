@@ -9,6 +9,7 @@ pub enum ArrayElementType {
     /// Contain a primitive type
     Primitive(PropertyType),
     Complex(IdName),
+    Unknown,
 }
 
 /// Extra data for some property types.
@@ -43,7 +44,7 @@ pub enum PropertyType {
 }
 
 impl PropertyType {
-    pub fn primitive(&self) -> bool {
+    pub fn is_primitive(&self) -> bool {
         match self {
             Self::Bool
             | Self::Int8

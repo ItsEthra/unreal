@@ -3,6 +3,7 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
+use sourcer::{ArrayElementType, PropertyData, PropertyType};
 use std::{
     borrow::Cow,
     iter::successors,
@@ -273,6 +274,26 @@ pub fn get_ustruct_alignment(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     )?;
 
     Ok(alignment as usize)
+}
+
+pub fn get_fproperty_array_prop_data(
+    info: &Info,
+    fproperty_ptr: Ptr,
+    prop_ty: Option<PropertyType>,
+) -> Result<Option<PropertyData>> {
+    let dim = get_fproperty_array_dim(info, fproperty_ptr)?;
+
+    let array_elem_ty = match dim {
+        2.. if prop_ty.is_none() => Some(ArrayElementType::Unknown),
+        2.. if prop_ty.unwrap().is_primitive() => {
+            Some(ArrayElementType::Primitive(prop_ty.unwrap()))
+        }
+        2.. => Some(ArrayElementType::Complex(todo!())),
+        1 => None,
+        _ => unreachable!(),
+    };
+
+    Ok(array_elem_ty.map(|ty| PropertyData::Array { ty, size: dim }))
 }
 
 pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {

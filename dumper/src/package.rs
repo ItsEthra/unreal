@@ -3,11 +3,10 @@
 use crate::{
     ptr::Ptr,
     utils::{
-        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_array_dim,
-        get_fproperty_element_size, get_fproperty_offset, get_uenum_names, get_uobject_code_name,
-        get_uobject_full_name, get_uobject_name, get_uobject_package, get_ustruct_alignment,
-        get_ustruct_children_props, get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list,
-        sanitize_ident,
+        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_element_size,
+        get_fproperty_offset, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
+        get_uobject_name, get_uobject_package, get_ustruct_alignment, get_ustruct_children_props,
+        get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
@@ -109,21 +108,23 @@ impl Package {
         let size = get_ustruct_size(info, uscript_struct_ptr)?;
         let alignment = get_ustruct_alignment(info, uscript_struct_ptr)?;
 
+        sstruct_cg.begin(&struct_name, IdName(full_name), Layout { size, alignment })?;
+
         let callback = |ffield_ptr: Ptr| {
-            let _field_name = get_ffield_name(info, ffield_ptr)?;
+            let field_name = get_ffield_name(info, ffield_ptr)?;
             let class = get_ffield_class(info, ffield_ptr)?;
             let classname = get_ffield_class_name(info, class)?;
 
-            let _dim = get_fproperty_array_dim(info, ffield_ptr)?;
-            let _elem_size = get_fproperty_element_size(info, ffield_ptr)?;
-            let _offset = get_fproperty_offset(info, ffield_ptr)?;
+            let elem_size = get_fproperty_element_size(info, ffield_ptr)?;
+            let offset = get_fproperty_offset(info, ffield_ptr)?;
 
-            let _prop_ty = PropertyType::from_str(&classname);
+            let prop_ty = PropertyType::from_str(&classname);
+            // let prop_data = get_fproperty_array_prop_data(info, ffield_ptr, prop_ty)?;
+
+            sstruct_cg.append_field(&field_name, prop_ty, None, elem_size, offset)?;
 
             Ok(())
         };
-
-        sstruct_cg.begin(&struct_name, IdName(full_name), Layout { size, alignment })?;
 
         if let Some(props) = get_ustruct_children_props(info, uscript_struct_ptr)? {
             iter_ffield_linked_list(info, props, callback)?;
