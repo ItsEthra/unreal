@@ -3,7 +3,7 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
-use sourcer::{ArrayElementType, IdName, PropertyData, PropertyType};
+use sourcer::{ElementType, PropertyData, PropertyType};
 use std::{
     borrow::Cow,
     iter::successors,
@@ -313,11 +313,11 @@ pub fn get_fproperty_array_prop_data(
     let dim = get_fproperty_array_dim(info, fproperty_ptr)?;
 
     let array_elem_ty = match dim {
-        2.. if prop_ty.is_none() => Some(ArrayElementType::Unknown),
-        2.. if prop_ty.unwrap().is_primitive() => Some(ArrayElementType::Primitive),
+        2.. if prop_ty.is_none() => Some(ElementType::Unknown),
+        2.. if prop_ty.unwrap().is_primitive() => Some(ElementType::Primitive),
         2.. => {
             let class = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
-            Some(ArrayElementType::Complex(
+            Some(ElementType::Complex(
                 get_uobject_full_name(info, class)?.into(),
             ))
         }
@@ -332,24 +332,23 @@ pub fn get_fproperty_array_prop_data(
 pub fn get_fproperty_prop_data(
     info: &Info,
     fproperty_ptr: Ptr,
-    prop_ty: Option<PropertyType>,
+    prop_ty: PropertyType,
 ) -> Result<Option<PropertyData>> {
-    let array_data = get_fproperty_array_prop_data(info, fproperty_ptr, prop_ty)?;
+    let array_data = get_fproperty_array_prop_data(info, fproperty_ptr, Some(prop_ty))?;
     let prop_data = match prop_ty {
-        Some(PropertyType::Object | PropertyType::Struct) => {
+        PropertyType::Object | PropertyType::Struct => {
             let class = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
             Some(PropertyData::Qualify {
-                ty: IdName(get_uobject_full_name(info, class)?),
+                ty: get_uobject_full_name(info, class)?.into(),
             })
         }
-        None => None,
         _ => None,
     };
 
     Ok(array_data.or(prop_data))
 }
 
-pub fn get_farray_prop_inner_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+pub fn get_tarray_prop_inner_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut inner_prop = Ptr(0);
     info.process.read_buf(
         fproperty_ptr + OFFSETS.fproperty.size,

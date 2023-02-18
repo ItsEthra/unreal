@@ -3,16 +3,16 @@
 use crate::{
     ptr::Ptr,
     utils::{
-        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_element_size,
-        get_fproperty_offset, get_fproperty_prop_data, get_uenum_names, get_uobject_code_name,
-        get_uobject_full_name, get_uobject_name, get_uobject_package, get_ustruct_alignment,
-        get_ustruct_children_props, get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list,
-        sanitize_ident,
+        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fobject_prop_pointee_class,
+        get_fproperty_element_size, get_fproperty_offset, get_fproperty_prop_data,
+        get_tarray_prop_inner_class, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
+        get_uobject_name, get_uobject_package, get_ustruct_alignment, get_ustruct_children_props,
+        get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
 use eyre::Result;
-use log::{info, trace};
+use log::{debug, info, trace};
 use sourcer::{
     DependencyTree, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
     ScriptStructGenerator,
@@ -120,7 +120,21 @@ impl Package {
             let offset = get_fproperty_offset(info, ffield_ptr)?;
 
             let prop_ty = PropertyType::from_str(&classname);
-            let prop_data = get_fproperty_prop_data(info, ffield_ptr, prop_ty)?;
+            let prop_data = prop_ty
+                .map(|pty| get_fproperty_prop_data(info, ffield_ptr, pty))
+                .transpose()?
+                .flatten();
+
+            if struct_name == "FPerPlatformSettings" && prop_ty == Some(PropertyType::Vector) {
+                // if struct_name == "FRigidBodyContactInfo" {
+                let inner = get_tarray_prop_inner_class(info, ffield_ptr)?;
+                let class = get_ffield_class(info, inner)?;
+                let classname = get_ffield_class_name(info, class)?;
+                let pointee = get_fobject_prop_pointee_class(info, inner)?;
+                let full = get_uobject_full_name(info, pointee)?;
+
+                debug!("{ffield_ptr:?} {prop_ty:?} {prop_data:?} {inner:?} {classname} {full}");
+            }
 
             sstruct_cg.append_field(&field_name, prop_ty, prop_data, elem_size, offset)?;
 

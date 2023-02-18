@@ -12,19 +12,26 @@ impl From<String> for IdName {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum ArrayElementType {
+pub enum ElementType {
     /// Contain a primitive type
     Primitive,
     Complex(IdName),
     Unknown,
 }
 
+impl From<String> for ElementType {
+    #[inline]
+    fn from(value: String) -> Self {
+        Self::Complex(value.into())
+    }
+}
+
 /// Extra data for some property types.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum PropertyData {
-    Array { ty: ArrayElementType, size: u32 },
+    Array { ty: ElementType, size: u32 },
     Map { key: IdName, value: IdName },
-    Qualify { ty: IdName },
+    Qualify { ty: ElementType },
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
