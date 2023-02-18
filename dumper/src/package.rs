@@ -17,12 +17,15 @@ pub struct Package {
 impl Package {
     pub fn process(&self, info: &Info) -> Result<()> {
         let enum_sc = info.objects.enum_static_class(info)?;
+        let script_struct_sc = info.objects.script_struct_static_class(info)?;
 
         for obj in self.objects.iter().copied() {
             let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
 
             if is_a(enum_sc)? {
                 self.process_enum(info, obj)?;
+            } else if is_a(script_struct_sc)? {
+                self.process_script_struct(info, obj)?;
             }
         }
 
@@ -40,6 +43,10 @@ impl Package {
 
         get_uenum_names(info, uenum_ptr, callback)?;
 
+        Ok(())
+    }
+
+    fn process_script_struct(&self, _info: &Info, _uscript_struct_ptr: Ptr) -> Result<()> {
         Ok(())
     }
 }
