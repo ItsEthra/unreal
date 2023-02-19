@@ -39,9 +39,7 @@ impl Package {
 
             if is_a(enum_sc)? {
                 self.process_enum(info, obj, &mut *codegen.add_enum()?)?;
-            } else if is_a(script_struct_sc)? {
-                // self.process_script_struct(info, obj, &mut *codegen.add_script_struct()?)?;
-            } else if is_a(class_sc)? {
+            } else if is_a(script_struct_sc)? || is_a(class_sc)? {
                 self.process_ustruct(info, obj, &mut *codegen.add_struct()?)?;
             }
         }
