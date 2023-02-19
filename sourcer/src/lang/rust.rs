@@ -50,14 +50,23 @@ impl<'a> StructGenerator for StructGen<'a> {
         name: &str,
         id_name: IdName,
         layout: Layout,
-        _parent: Option<IdName>,
+        parent: Option<IdName>,
     ) -> Result<()> {
         writeln!(self.0.librs, "// Full name: {id_name}")?;
         writeln!(self.0.librs, "// Unaligned size: 0x{:X}", layout.size)?;
         writeln!(self.0.librs, "// Alignment: 0x{:X}", layout.alignment)?;
         writeln!(self.0.librs, "memflex::makestruct! {{")?;
+
         // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
-        writeln!(self.0.librs, "\tpub struct {name} {{")?;
+        if let Some(parent) = parent.and_then(|p| self.1.lookup(&p)) {
+            writeln!(
+                self.0.librs,
+                "\tpub struct {name} : {} {{",
+                parent.code_name
+            )?;
+        } else {
+            writeln!(self.0.librs, "\tpub struct {name} {{")?;
+        }
 
         Ok(())
     }

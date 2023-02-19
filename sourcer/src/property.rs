@@ -6,6 +6,25 @@ pub struct Layout {
     pub alignment: usize,
 }
 
+impl Layout {
+    pub fn align(&self) -> usize {
+        if self.size % self.alignment != 0 {
+            self.size + (self.alignment - self.size % self.alignment)
+        } else {
+            self.size
+        }
+    }
+}
+
+#[test]
+fn test_align() {
+    let layout = Layout {
+        size: 14,
+        alignment: 8,
+    };
+    assert_eq!(layout.align(), 16);
+}
+
 /// Fully qualified name
 #[derive(Debug, Display, PartialEq, Eq, Hash, Clone)]
 pub struct IdName(pub String);
