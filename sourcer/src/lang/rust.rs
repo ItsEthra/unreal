@@ -1,15 +1,16 @@
 use crate::{
-    ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType, SdkGenerator,
-    StructGenerator,
+    ClassData, ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
+    SdkGenerator, StructGenerator,
 };
 use std::{
+    collections::HashSet,
     fs::{self, File, OpenOptions},
     io::{Result, Write},
     path::{Path, PathBuf},
     rc::Rc,
 };
 
-struct EnumGen<'a>(&'a mut Crate);
+struct EnumGen<'a>(&'a mut Module);
 impl<'a> EnumGenerator for EnumGen<'a> {
     fn begin(&mut self, name: &str, id_name: IdName, min_max: Option<(i64, i64)>) -> Result<()> {
         let ty = if let Some((min, max)) = min_max {
@@ -22,28 +23,32 @@ impl<'a> EnumGenerator for EnumGen<'a> {
             "i32"
         };
 
-        writeln!(self.0.librs, "// Full name: {id_name}")?;
-        writeln!(self.0.librs, "memflex::bitflags! {{")?;
-        writeln!(self.0.librs, "\t#[repr(transparent)]")?;
-        writeln!(self.0.librs, "\tpub struct {name} : {ty} {{")?;
+        writeln!(self.0.enums, "// Full name: {id_name}")?;
+        writeln!(self.0.enums, "memflex::bitflags! {{")?;
+        writeln!(self.0.enums, "\t#[repr(transparent)]")?;
+        writeln!(self.0.enums, "\tpub struct {name} : {ty} {{")?;
 
         Ok(())
     }
 
     fn append_variant(&mut self, variant: &str, value: i64) -> Result<()> {
-        writeln!(self.0.librs, "\t\tconst {variant} = {value};")?;
+        writeln!(self.0.enums, "\t\tconst {variant} = {value};")?;
 
         Ok(())
     }
 
     fn end(&mut self) -> Result<()> {
-        writeln!(self.0.librs, "\t}}\n}}\n")?;
+        writeln!(self.0.enums, "\t}}\n}}\n")?;
 
         Ok(())
     }
 }
 
-struct StructGen<'a>(&'a mut Crate, &'a ClassRegistry);
+struct StructGen<'a> {
+    module: &'a mut Module,
+    registry: &'a ClassRegistry,
+}
+
 impl<'a> StructGenerator for StructGen<'a> {
     fn begin(
         &mut self,
@@ -52,20 +57,32 @@ impl<'a> StructGenerator for StructGen<'a> {
         layout: Layout,
         parent: Option<IdName>,
     ) -> Result<()> {
-        writeln!(self.0.librs, "// Full name: {id_name}")?;
-        writeln!(self.0.librs, "// Unaligned size: 0x{:X}", layout.size)?;
-        writeln!(self.0.librs, "// Alignment: 0x{:X}", layout.alignment)?;
-        writeln!(self.0.librs, "memflex::makestruct! {{")?;
+        writeln!(self.module.classes, "// Full name: {id_name}")?;
+        writeln!(
+            self.module.classes,
+            "// Unaligned size: 0x{:X}",
+            layout.size
+        )?;
+        writeln!(
+            self.module.classes,
+            "// Alignment: 0x{:X}",
+            layout.alignment
+        )?;
+        writeln!(self.module.classes, "memflex::makestruct! {{")?;
 
         // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
-        if let Some(parent) = parent.and_then(|p| self.1.lookup(&p)) {
-            writeln!(
-                self.0.librs,
-                "\tpub struct {name} : {} {{",
-                parent.code_name
-            )?;
+        if let Some(parent) = parent {
+            let ClassData {
+                code_name, package, ..
+            } = self.registry.lookup(&parent).unwrap();
+
+            if &self.module.package_name != package {
+                self.module.imports.insert(parent);
+            }
+
+            writeln!(self.module.classes, "\tpub struct {name} : {code_name} {{",)?;
         } else {
-            writeln!(self.0.librs, "\tpub struct {name} {{")?;
+            writeln!(self.module.classes, "\tpub struct {name} {{")?;
         }
 
         Ok(())
@@ -82,7 +99,7 @@ impl<'a> StructGenerator for StructGen<'a> {
     }
 
     fn end(&mut self) -> Result<()> {
-        writeln!(self.0.librs, "\t}}\n}}\n")?;
+        writeln!(self.module.classes, "\t}}\n}}\n")?;
 
         Ok(())
     }
@@ -90,16 +107,42 @@ impl<'a> StructGenerator for StructGen<'a> {
 
 struct PackageGen {
     this: Crate,
+    module: Module,
     registry: Rc<ClassRegistry>,
 }
 
 impl PackageGenerator for PackageGen {
     fn add_enum<'new>(&'new mut self) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
-        Ok(Box::new(EnumGen(&mut self.this)))
+        Ok(Box::new(EnumGen(&mut self.module)))
     }
 
     fn add_struct<'new>(&'new mut self) -> Result<Box<dyn crate::StructGenerator + 'new>> {
-        Ok(Box::new(StructGen(&mut self.this, &self.registry)))
+        Ok(Box::new(StructGen {
+            module: &mut self.module,
+            registry: &self.registry,
+        }))
+    }
+
+    fn end(&mut self) -> Result<()> {
+        let dependencies = self
+            .module
+            .imports
+            .iter()
+            .map(|id| self.registry.lookup(id).expect("Unresolved import"))
+            .map(|ClassData { package, .. }| package)
+            .collect::<HashSet<_>>();
+
+        for pkg in dependencies {
+            writeln!(self.this.toml, "{pkg}.workspace = true")?;
+            writeln!(self.this.librs, "use {pkg}::*;")?;
+        }
+
+        writeln!(self.this.librs, "")?;
+
+        self.this.librs.write_all(&self.module.enums)?;
+        self.this.librs.write_all(&self.module.classes)?;
+
+        Ok(())
     }
 }
 
@@ -145,7 +188,7 @@ impl SdkGenerator for RustSdkGenerator {
             writeln!(package.toml, "[lib]")?;
             writeln!(package.toml, "path = \"lib.rs\"\n")?;
             writeln!(package.toml, "[dependencies]")?;
-            writeln!(package.toml, "memflex.workspace = true")?;
+            writeln!(package.toml, "memflex.workspace = true\n")?;
         }
 
         // Write prelude to lib.rs
@@ -166,6 +209,10 @@ impl SdkGenerator for RustSdkGenerator {
         Ok(Box::new(PackageGen {
             this: package,
             registry: registry.clone(),
+            module: Module {
+                package_name: name.to_string(),
+                ..Default::default()
+            },
         }))
     }
 
@@ -196,4 +243,12 @@ fn open_file(path: impl AsRef<Path>) -> Result<File> {
 struct Crate {
     toml: File,
     librs: File,
+}
+
+#[derive(Default)]
+struct Module {
+    package_name: String,
+    imports: HashSet<IdName>,
+    enums: Vec<u8>,
+    classes: Vec<u8>,
 }

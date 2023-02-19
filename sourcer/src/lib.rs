@@ -40,10 +40,6 @@ pub trait EnumGenerator {
 }
 
 pub trait PackageGenerator {
-    fn begin(&mut self) -> Result<()> {
-        Ok(())
-    }
-
     fn add_enum<'new>(&'new mut self) -> Result<Box<dyn EnumGenerator + 'new>>;
     fn add_struct<'new>(&'new mut self) -> Result<Box<dyn StructGenerator + 'new>>;
 

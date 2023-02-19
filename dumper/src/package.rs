@@ -28,7 +28,7 @@ impl Package {
     pub fn process<'pkg>(
         &self,
         info: &Info,
-        mut codegen: Box<dyn PackageGenerator + 'pkg>,
+        codegen: &mut (dyn PackageGenerator + 'pkg),
     ) -> Result<()> {
         let enum_sc = info.objects.enum_static_class(info)?;
         let script_struct_sc = info.objects.script_struct_static_class(info)?;
@@ -88,7 +88,7 @@ impl Package {
             .copied()
             .zip(pairs.iter().map(|(_, k)| k).max().copied());
 
-        enum_cg.begin(&code_name, IdName(full_name), min_max)?;
+        enum_cg.begin(&code_name, full_name.into(), min_max)?;
         for (name, value) in pairs {
             enum_cg.append_variant(&name, value)?;
         }
