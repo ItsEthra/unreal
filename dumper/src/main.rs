@@ -8,7 +8,7 @@ use package::dump_packages;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
 use sourcer::{lang::RustSdkGenerator, ClassRegistry, SdkGenerator};
-use std::{cell::RefCell, fs, io::Write, ops::Deref, rc::Rc};
+use std::{cell::RefCell, fs, io::Write, ops::Deref, rc::Rc, time::Instant};
 
 mod macros;
 mod names;
@@ -94,9 +94,13 @@ fn main() -> Result<()> {
         .expect("GObjects is required so far"))
         + 0x10;
 
+    let start = Instant::now();
+
+    info!("Dumping names");
     let gnames = names::dump_names(&info, names_ptr)?;
     info.names.0 = Some(gnames);
 
+    info!("Dumping objects");
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
@@ -119,6 +123,8 @@ fn main() -> Result<()> {
     }
 
     sdkgen.end()?;
+
+    info!("Finished in {:?}", start.elapsed());
 
     Ok(())
 }
