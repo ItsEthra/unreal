@@ -14,3 +14,5 @@ mod string;
 pub use string::*;
 mod map;
 pub use map::*;
+mod set;
+pub use set::*;

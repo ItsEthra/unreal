@@ -12,15 +12,23 @@ use std::{
     rc::Rc,
 };
 
+fn pick_enum_size(min: i64, max: i64) -> &'static str {
+    if i8::MAX as i64 > max && (i8::MIN as i64) < min {
+        "i8"
+    } else if i16::MAX as i64 > max && (i16::MIN as i64) < min {
+        "i16"
+    } else if i32::MAX as i64 > max && (i32::MIN as i64) < min {
+        "i32"
+    } else {
+        "i64"
+    }
+}
+
 struct EnumGen<'a>(&'a mut Module);
 impl<'a> EnumGenerator for EnumGen<'a> {
     fn begin(&mut self, name: &str, id_name: IdName, min_max: Option<(i64, i64)>) -> Result<()> {
         let ty = if let Some((min, max)) = min_max {
-            if min < i32::MIN as i64 || max > i32::MAX as i64 {
-                "i64"
-            } else {
-                "i32"
-            }
+            pick_enum_size(min, max)
         } else {
             "i32"
         };
@@ -51,6 +59,7 @@ struct StructGen<'a> {
     registry: &'a ClassRegistry,
     offset: usize,
     layout: Layout,
+    name: String,
     field_names: HashSet<String>,
 }
 
@@ -63,6 +72,7 @@ impl<'a> StructGenerator for StructGen<'a> {
         parent: Option<IdName>,
     ) -> Result<()> {
         self.layout = layout;
+        self.name = name.to_string();
 
         writeln!(self.module.classes, "// {id_name}")?;
         writeln!(
@@ -93,7 +103,7 @@ impl<'a> StructGenerator for StructGen<'a> {
             self.offset = layout
                 .as_ref()
                 .expect("Deriving from enum is not allowed")
-                .align();
+                .size;
 
             if code_name == name {
                 warn!("{parent} is recursive. Skipping parenting");
@@ -165,7 +175,13 @@ impl<'a> StructGenerator for StructGen<'a> {
             )?;
         }
 
-        writeln!(self.module.classes, "\t}}\n}}\n")?;
+        writeln!(self.module.classes, "\t}}\n}}")?;
+        writeln!(
+            self.module.classes,
+            "ucore::assert_size!({}, 0x{:X});\n",
+            self.name,
+            self.layout.align()
+        )?;
 
         Ok(())
     }
@@ -189,6 +205,7 @@ impl PackageGenerator for PackageGen {
             offset: 0,
             layout: Layout::default(),
             field_names: HashSet::new(),
+            name: String::new(),
         }))
     }
 
@@ -393,7 +410,7 @@ impl<'a> TypeStringifier<'a> {
                 self.stringify(*value)
             )
             .into(),
-            PropertyType::Set(ty) => format!("ucore::TArray<{}>", self.stringify(*ty)).into(),
+            PropertyType::Set(ty) => format!("ucore::TSet<{}>", self.stringify(*ty)).into(),
             PropertyType::ClassPtr(ty) => {
                 format!("Option<ucore::ClassPtr<{}>>", self.stringify(*ty)).into()
             }

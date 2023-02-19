@@ -1,6 +1,6 @@
-use crate::TArray;
+use crate::TSet;
 
 #[repr(C)]
 pub struct TMap<K, V> {
-    data: TArray<(K, V)>,
+    data: TSet<(K, V)>,
 }
