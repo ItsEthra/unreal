@@ -56,7 +56,6 @@ impl<'a> ScriptStructGenerator for ScriptStructGen<'a> {
         &mut self,
         _field_name: &str,
         _field_ty: Option<crate::PropertyType>,
-        _field_data: Option<crate::PropertyData>,
         _elem_size: usize,
         _offset: usize,
     ) -> Result<()> {
