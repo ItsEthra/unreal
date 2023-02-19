@@ -137,18 +137,19 @@ impl<'a> StructGenerator for StructGen<'a> {
         self.offset = offset + size;
 
         // Sometimes field names are duplicated for whatever reason
-        if self.field_names.contains(field_name) {
-            writeln!(
-                self.module.classes,
-                "\t\tpub {field_name}_{offset:X}: {typename}, // 0x{offset:X}"
-            )?;
+        let name = if self.field_names.contains(field_name) {
+            warn!("Field {field_name} of type {typename} is duplicate");
+
+            format!("{field_name}_{offset:X}")
         } else {
-            writeln!(
-                self.module.classes,
-                "\t\tpub {field_name}: {typename}, // 0x{offset:X}"
-            )?;
             self.field_names.insert(field_name.to_owned());
-        }
+            format!("{field_name}")
+        };
+
+        writeln!(
+            self.module.classes,
+            "\t\tpub {name}: {typename}, // Offset: 0x{offset:X}. Size: 0x{size:X}"
+        )?;
 
         Ok(())
     }
