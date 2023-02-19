@@ -1,5 +1,11 @@
 use derive_more::Display;
 
+#[derive(Debug)]
+pub struct Layout {
+    pub size: usize,
+    pub alignment: usize,
+}
+
 /// Fully qualified name
 #[derive(Debug, Display, PartialEq, Eq, Hash, Clone)]
 pub struct IdName(pub String);
@@ -18,18 +24,22 @@ pub enum PropertyType {
     UInt8, UInt16, UInt32, UInt64,
     Float32, Float64,
     Bool,    
+    Array {
+        ty: Box<PropertyType>,
+        size: u32,
+    }, // Static array
     Vector(Box<PropertyType>), // TArray
     Map {
         key: Box<PropertyType>,
         value: Box<PropertyType>,
     }, // TMap
     Set(Box<PropertyType>), // TSet
-    Object(Box<PropertyType>), Class(Box<PropertyType>), // Pointer to object instance
-    Enum(Box<PropertyType>), // Enum field
+    ClassPtr(Box<PropertyType>), // Pointer to object instance can be a ObjectProperty or ClassProperty
     Name, // FName
     String, // FString
     Text, // FText
-    Struct(IdName), // Struct field
+    InlineClass(IdName), // Struct field can be a StructProperty or be inside other PropertyTypes
+    InlineEnum(IdName), // Enum field
 }
 
 impl PropertyType {

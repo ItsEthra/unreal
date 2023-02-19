@@ -1,4 +1,6 @@
-use crate::{EnumGenerator, IdName, Layout, PackageGenerator, ScriptStructGenerator, SdkGenerator};
+use crate::{
+    EnumGenerator, IdName, Layout, PackageGenerator, PropertyType, SdkGenerator, StructGenerator,
+};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Result, Write},
@@ -39,9 +41,15 @@ impl<'a> EnumGenerator for EnumGen<'a> {
     }
 }
 
-struct ScriptStructGen<'a>(&'a mut Crate);
-impl<'a> ScriptStructGenerator for ScriptStructGen<'a> {
-    fn begin(&mut self, name: &str, id_name: IdName, layout: Layout) -> Result<()> {
+struct StructGen<'a>(&'a mut Crate);
+impl<'a> StructGenerator for StructGen<'a> {
+    fn begin(
+        &mut self,
+        name: &str,
+        id_name: IdName,
+        layout: Layout,
+        _parent: Option<IdName>,
+    ) -> Result<()> {
         writeln!(self.0.librs, "// Full name: {id_name}")?;
         writeln!(self.0.librs, "// Unaligned size: 0x{:X}", layout.size)?;
         writeln!(self.0.librs, "// Alignment: 0x{:X}", layout.alignment)?;
@@ -55,7 +63,7 @@ impl<'a> ScriptStructGenerator for ScriptStructGen<'a> {
     fn append_field(
         &mut self,
         _field_name: &str,
-        _field_ty: Option<crate::PropertyType>,
+        _field_ty: PropertyType,
         _elem_size: usize,
         _offset: usize,
     ) -> Result<()> {
@@ -75,10 +83,8 @@ impl PackageGenerator for PackageGen {
         Ok(Box::new(EnumGen(&mut self.0)))
     }
 
-    fn add_script_struct<'new>(
-        &'new mut self,
-    ) -> Result<Box<dyn crate::ScriptStructGenerator + 'new>> {
-        Ok(Box::new(ScriptStructGen(&mut self.0)))
+    fn add_struct<'new>(&'new mut self) -> Result<Box<dyn crate::StructGenerator + 'new>> {
+        Ok(Box::new(StructGen(&mut self.0)))
     }
 }
 
