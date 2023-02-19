@@ -149,6 +149,8 @@ impl PackageGenerator for PackageGen {
 pub struct RustSdkGenerator {
     crates: PathBuf,
     workspace: Crate,
+
+    packages: Vec<String>,
 }
 
 impl SdkGenerator for RustSdkGenerator {
@@ -159,10 +161,11 @@ impl SdkGenerator for RustSdkGenerator {
     ) -> Result<Box<dyn PackageGenerator + 'pkg>> {
         // Add to workspace
         {
-            writeln!(self.workspace.toml, "[workspace.dependencies.{name}]")?;
-            writeln!(self.workspace.toml, "path = \"crates/{name}\"")?;
-            writeln!(self.workspace.toml, "[dependencies.{name}]")?;
-            writeln!(self.workspace.toml, "workspace = true\noptional = true")?;
+            self.packages.push(name.to_string());
+            // writeln!(self.workspace.toml, "[workspace.dependencies.{name}]")?;
+            // writeln!(self.workspace.toml, "path = \"crates/{name}\"")?;
+            // writeln!(self.workspace.toml, "[dependencies.{name}]")?;
+            // writeln!(self.workspace.toml, "workspace = true\noptional = true")?;
         }
 
         // Add to librs
@@ -223,16 +226,33 @@ impl SdkGenerator for RustSdkGenerator {
         let path = path.as_ref().join("usdk");
         fs::create_dir_all(&path)?;
 
-        let mut toml = open_file(path.join("Cargo.toml"))?;
+        let toml = open_file(path.join("Cargo.toml"))?;
         let librs = open_file(path.join("lib.rs"))?;
-
-        const WORKSPACE_DEF: &str = include_str!("../../workspace.toml");
-        writeln!(toml, "{WORKSPACE_DEF}")?;
 
         Ok(Self {
             crates: path.join("crates"),
             workspace: Crate { toml, librs },
+            packages: vec![],
         })
+    }
+
+    fn end(&mut self) -> Result<()> {
+        const WORKSPACE_DEF: &str = include_str!("../../workspace.toml");
+        writeln!(self.workspace.toml, "{WORKSPACE_DEF}")?;
+
+        for pkg in self.packages.iter() {
+            writeln!(self.workspace.toml, "{pkg} = {{ path = \"crates/{pkg}\" }}")?;
+        }
+
+        writeln!(self.workspace.toml, "\n[dependencies]")?;
+        for pkg in self.packages.iter() {
+            writeln!(
+                self.workspace.toml,
+                "{pkg} = {{ workspace = true, optional = true }}"
+            )?;
+        }
+
+        Ok(())
     }
 }
 
