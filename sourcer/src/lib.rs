@@ -1,4 +1,4 @@
-use std::{io::Result, path::Path};
+use std::{io::Result, path::Path, rc::Rc};
 
 pub mod lang;
 
@@ -60,6 +60,7 @@ pub trait SdkGenerator {
     fn begin_package<'sdk: 'pkg, 'pkg>(
         &'sdk mut self,
         name: &str,
+        registry: &Rc<ClassRegistry>,
     ) -> Result<Box<dyn PackageGenerator + 'pkg>>;
 
     fn end(&mut self) -> Result<()> {

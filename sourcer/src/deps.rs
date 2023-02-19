@@ -29,4 +29,8 @@ impl ClassRegistry {
     pub fn lookup(&self, identifier: &IdName) -> Option<&ClassData> {
         self.packages.get(identifier)
     }
+
+    pub fn len(&self) -> usize {
+        self.packages.len()
+    }
 }

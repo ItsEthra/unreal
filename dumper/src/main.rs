@@ -1,5 +1,6 @@
 use argh::FromArgs;
 use eyre::Result;
+use log::info;
 use names::GNames;
 use objects::GObjects;
 use offsets::Offsets;
@@ -7,7 +8,7 @@ use package::dump_packages;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
 use sourcer::{lang::RustSdkGenerator, ClassRegistry, SdkGenerator};
-use std::{cell::RefCell, fs, io::Write, ops::Deref};
+use std::{cell::RefCell, fs, io::Write, ops::Deref, rc::Rc};
 
 mod macros;
 mod names;
@@ -100,10 +101,17 @@ fn main() -> Result<()> {
     info.objects.0 = Some(gobjects);
 
     let mut sdkgen = RustSdkGenerator::new(".")?;
-    let mut registry = ClassRegistry::default();
 
-    for package in dump_packages(&info, &mut registry)? {
-        let pkg_cg = sdkgen.begin_package(&package.name)?;
+    let (packages, registry) = {
+        let mut rg = ClassRegistry::default();
+        let pkgs = dump_packages(&info, &mut rg)?;
+        info!("Registry entries: {}", rg.len());
+
+        (pkgs, Rc::new(rg))
+    };
+
+    for package in packages.iter() {
+        let pkg_cg = sdkgen.begin_package(&package.name, &registry)?;
 
         package.process(&info, pkg_cg)?;
     }
