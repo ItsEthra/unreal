@@ -1,4 +1,5 @@
 #[repr(C)]
 pub struct FName {
-    entry: u32,
+    _entry: u32,
+    _pad: u32,
 }
