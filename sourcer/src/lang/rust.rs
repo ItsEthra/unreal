@@ -48,6 +48,8 @@ impl<'a> EnumGenerator for EnumGen<'a> {
 struct StructGen<'a> {
     module: &'a mut Module,
     registry: &'a ClassRegistry,
+    offset: usize,
+    layout: Layout,
 }
 
 impl<'a> StructGenerator for StructGen<'a> {
@@ -58,28 +60,39 @@ impl<'a> StructGenerator for StructGen<'a> {
         layout: Layout,
         parent: Option<IdName>,
     ) -> Result<()> {
-        writeln!(self.module.classes, "// Full name: {id_name}")?;
+        self.layout = layout;
+
+        writeln!(self.module.classes, "// {id_name}")?;
         writeln!(
             self.module.classes,
-            "// Unaligned size: 0x{:X}",
-            layout.size
-        )?;
-        writeln!(
-            self.module.classes,
-            "// Alignment: 0x{:X}",
-            layout.alignment
+            "// Size: 0x{:X}. Alignment: {:X}.{}",
+            layout.align(),
+            layout.alignment,
+            if let Some(parent) = parent.as_ref().map(|p| self
+                .registry
+                .lookup(p)
+                .expect("Missing import")
+                .layout
+                .expect("Deriving from enum is not allowed")
+                .align())
+            {
+                Cow::Owned(format!(" (Parent: 0x{parent:X})"))
+            } else {
+                Cow::Borrowed("")
+            }
         )?;
         writeln!(self.module.classes, "memflex::makestruct! {{")?;
 
         // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
         if let Some(parent) = parent {
             let ClassData {
-                code_name, package, ..
+                code_name, layout, ..
             } = self.registry.lookup(&parent).unwrap();
-
-            if &self.module.package_name != package {
-                self.module.imports.insert(parent);
-            }
+            self.offset = layout
+                .as_ref()
+                .expect("Deriving from enum is not allowed")
+                .align();
+            self.module.imports.insert(parent);
 
             writeln!(self.module.classes, "\tpub struct {name} : {code_name} {{",)?;
         } else {
@@ -91,15 +104,50 @@ impl<'a> StructGenerator for StructGen<'a> {
 
     fn append_field(
         &mut self,
-        _field_name: &str,
-        _field_ty: PropertyType,
-        _elem_size: usize,
-        _offset: usize,
+        field_name: &str,
+        field_ty: PropertyType,
+        elem_size: usize,
+        offset: usize,
     ) -> Result<()> {
+        let size = match field_ty {
+            PropertyType::Array { ref size, .. } => *size as usize * elem_size,
+            _ => elem_size,
+        };
+
+        let mut ts = TypeStringifier::new(self.registry);
+        let typename = ts.stringify(field_ty);
+
+        self.module.imports.extend(ts.into_imports());
+
+        if offset > self.offset {
+            writeln!(
+                self.module.classes,
+                "\t\t_pad_0x{:X}: [u8; 0x{:X}],",
+                self.offset,
+                offset - self.offset
+            )?;
+        }
+        self.offset = offset + size;
+
+        writeln!(
+            self.module.classes,
+            "\t\tpub {field_name}: {typename}, // 0x{offset:X}"
+        )?;
+
         Ok(())
     }
 
     fn end(&mut self) -> Result<()> {
+        let expected_size = self.layout.align();
+        if self.offset != expected_size {
+            writeln!(
+                self.module.classes,
+                "\t\t_pad_0x{:x}: [u8; 0x{:X}],",
+                self.offset,
+                expected_size - self.offset
+            )?;
+        }
+
         writeln!(self.module.classes, "\t}}\n}}\n")?;
 
         Ok(())
@@ -121,6 +169,8 @@ impl PackageGenerator for PackageGen {
         Ok(Box::new(StructGen {
             module: &mut self.module,
             registry: &self.registry,
+            offset: 0,
+            layout: Layout::default(),
         }))
     }
 
@@ -130,7 +180,13 @@ impl PackageGenerator for PackageGen {
             .imports
             .iter()
             .map(|id| self.registry.lookup(id).expect("Unresolved import"))
-            .map(|ClassData { package, .. }| package)
+            .filter_map(|ClassData { package, .. }| {
+                if package != &self.module.package_name {
+                    Some(package)
+                } else {
+                    None
+                }
+            })
             .collect::<HashSet<_>>();
 
         for pkg in dependencies {
@@ -258,7 +314,11 @@ impl SdkGenerator for RustSdkGenerator {
 }
 
 fn open_file(path: impl AsRef<Path>) -> Result<File> {
-    OpenOptions::new().create(true).write(true).open(path)
+    OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(path)
 }
 
 struct Crate {
@@ -276,20 +336,24 @@ struct Module {
 
 struct TypeStringifier<'a> {
     registry: &'a ClassRegistry,
-    deps: HashSet<IdName>,
+    imports: HashSet<IdName>,
 }
 
 impl<'a> TypeStringifier<'a> {
     pub fn new(registry: &'a ClassRegistry) -> Self {
         Self {
             registry,
-            deps: HashSet::new(),
+            imports: HashSet::new(),
         }
+    }
+
+    pub fn into_imports(self) -> impl Iterator<Item = IdName> {
+        self.imports.into_iter()
     }
 
     pub fn stringify(&mut self, ty: PropertyType) -> Cow<'a, str> {
         let mut fetch_dep = |id: IdName| -> &str {
-            self.deps.insert(id.clone());
+            self.imports.insert(id.clone());
             &self
                 .registry
                 .lookup(&id)

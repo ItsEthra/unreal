@@ -1,8 +1,7 @@
+use derive_more::Display;
 use std::rc::Rc;
 
-use derive_more::Display;
-
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Layout {
     pub size: usize,
     pub alignment: usize,
@@ -10,6 +9,10 @@ pub struct Layout {
 
 impl Layout {
     pub fn align(&self) -> usize {
+        if self.alignment == 0 {
+            return 0;
+        }
+
         if self.size % self.alignment != 0 {
             self.size + (self.alignment - self.size % self.alignment)
         } else {
