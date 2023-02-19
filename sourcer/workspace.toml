@@ -10,4 +10,5 @@ path = "lib.rs"
 members = ["crates/*"]
 
 [workspace.dependencies]
-memflex = "0.4"
+memflex = "0.5"
+ucore = { path = "../ucore" }

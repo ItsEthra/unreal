@@ -2,6 +2,7 @@ use crate::{
     ClassData, ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
     SdkGenerator, StructGenerator,
 };
+use log::warn;
 use std::{
     borrow::Cow,
     collections::HashSet,
@@ -50,6 +51,7 @@ struct StructGen<'a> {
     registry: &'a ClassRegistry,
     offset: usize,
     layout: Layout,
+    field_names: HashSet<String>,
 }
 
 impl<'a> StructGenerator for StructGen<'a> {
@@ -92,9 +94,14 @@ impl<'a> StructGenerator for StructGen<'a> {
                 .as_ref()
                 .expect("Deriving from enum is not allowed")
                 .align();
-            self.module.imports.insert(parent);
 
-            writeln!(self.module.classes, "\tpub struct {name} : {code_name} {{",)?;
+            if code_name == name {
+                warn!("{parent} is recursive. Skipping parenting");
+                writeln!(self.module.classes, "\tpub struct {name} {{",)?;
+            } else {
+                writeln!(self.module.classes, "\tpub struct {name} : {code_name} {{",)?;
+            }
+            self.module.imports.insert(parent);
         } else {
             writeln!(self.module.classes, "\tpub struct {name} {{")?;
         }
@@ -129,10 +136,19 @@ impl<'a> StructGenerator for StructGen<'a> {
         }
         self.offset = offset + size;
 
-        writeln!(
-            self.module.classes,
-            "\t\tpub {field_name}: {typename}, // 0x{offset:X}"
-        )?;
+        // Sometimes field names are duplicated for whatever reason
+        if self.field_names.contains(field_name) {
+            writeln!(
+                self.module.classes,
+                "\t\tpub {field_name}_{offset:X}: {typename}, // 0x{offset:X}"
+            )?;
+        } else {
+            writeln!(
+                self.module.classes,
+                "\t\tpub {field_name}: {typename}, // 0x{offset:X}"
+            )?;
+            self.field_names.insert(field_name.to_owned());
+        }
 
         Ok(())
     }
@@ -171,6 +187,7 @@ impl PackageGenerator for PackageGen {
             registry: &self.registry,
             offset: 0,
             layout: Layout::default(),
+            field_names: HashSet::new(),
         }))
     }
 
@@ -216,14 +233,7 @@ impl SdkGenerator for RustSdkGenerator {
         name: &str,
         registry: &Rc<ClassRegistry>,
     ) -> Result<Box<dyn PackageGenerator + 'pkg>> {
-        // Add to workspace
-        {
-            self.packages.push(name.to_string());
-            // writeln!(self.workspace.toml, "[workspace.dependencies.{name}]")?;
-            // writeln!(self.workspace.toml, "path = \"crates/{name}\"")?;
-            // writeln!(self.workspace.toml, "[dependencies.{name}]")?;
-            // writeln!(self.workspace.toml, "workspace = true\noptional = true")?;
-        }
+        self.packages.push(name.to_string());
 
         // Add to librs
         {
@@ -248,6 +258,7 @@ impl SdkGenerator for RustSdkGenerator {
             writeln!(package.toml, "[lib]")?;
             writeln!(package.toml, "path = \"lib.rs\"\n")?;
             writeln!(package.toml, "[dependencies]")?;
+            writeln!(package.toml, "ucore.workspace = true")?;
             writeln!(package.toml, "memflex.workspace = true\n")?;
         }
 
@@ -383,7 +394,7 @@ impl<'a> TypeStringifier<'a> {
             .into(),
             PropertyType::Set(ty) => format!("ucore::TArray<{}>", self.stringify(*ty)).into(),
             PropertyType::ClassPtr(ty) => {
-                format!("ucore::ClassPtr<{}>", self.stringify(*ty)).into()
+                format!("Option<ucore::ClassPtr<{}>>", self.stringify(*ty)).into()
             }
             PropertyType::Name => "ucore::FName".into(),
             PropertyType::String => "ucore::FString".into(),

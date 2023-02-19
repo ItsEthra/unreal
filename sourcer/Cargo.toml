@@ -9,3 +9,4 @@ repository.workspace = true
 
 [dependencies]
 derive_more = "0.99.17"
+log = "0.4.17"
