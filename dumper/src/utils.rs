@@ -3,6 +3,7 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
+use sourcer::PropertyType;
 use std::{
     borrow::Cow,
     iter::successors,
@@ -283,6 +284,16 @@ pub fn get_fproperty_element_size(info: &Info, fproperty_ptr: Ptr) -> Result<usi
     Ok(elem_size as usize)
 }
 
+pub fn get_ustruct_parent(info: &Info, ustruct_ptr: Ptr) -> Result<Option<Ptr>> {
+    let mut parent = Ptr(0);
+    info.process.read_buf(
+        ustruct_ptr + OFFSETS.ustruct.super_struct,
+        bytes_of_mut(&mut parent),
+    )?;
+
+    Ok(parent.to_option())
+}
+
 pub fn get_ustruct_size(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     let mut size = 0u32;
     info.process.read_buf(
@@ -304,7 +315,7 @@ pub fn get_ustruct_alignment(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     Ok(alignment as usize)
 }
 
-pub fn get_tarray_prop_inner_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+pub fn get_tarray_prop_inner_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut inner_prop = Ptr(0);
     info.process.read_buf(
         fproperty_ptr + OFFSETS.fproperty.size,
@@ -322,6 +333,137 @@ pub fn get_fobject_prop_pointee_class(info: &Info, fproperty_ptr: Ptr) -> Result
     )?;
 
     Ok(class)
+}
+
+pub fn get_fclass_prop_pointee_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+    let mut class = Ptr(0);
+    info.process.read_buf(
+        // TODO: Maybe add to offsets?
+        fproperty_ptr + OFFSETS.fproperty.size + size_of::<usize>(),
+        bytes_of_mut(&mut class),
+    )?;
+
+    Ok(class)
+}
+
+pub fn get_fenum_prop_inner_enum(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+    let mut uenum = Ptr(0);
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.size + size_of::<usize>(),
+        bytes_of_mut(&mut uenum),
+    )?;
+
+    Ok(uenum)
+}
+
+pub fn get_tset_prop_inner_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
+    let mut prop = Ptr(0);
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.size,
+        bytes_of_mut(&mut prop),
+    )?;
+
+    Ok(prop)
+}
+
+pub fn get_tmap_prop_key_value_props(info: &Info, fproperty_ptr: Ptr) -> Result<(Ptr, Ptr)> {
+    let (mut key, mut value) = (Ptr(0), Ptr(0));
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.size,
+        bytes_of_mut(&mut key),
+    )?;
+    info.process.read_buf(
+        fproperty_ptr + OFFSETS.fproperty.size + size_of::<usize>(),
+        bytes_of_mut(&mut value),
+    )?;
+
+    Ok((key, value))
+}
+
+pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<PropertyType>> {
+    let class = get_ffield_class(info, fproperty_ptr)?;
+    let classname = get_ffield_class_name(info, class)?;
+    let array_dim = get_fproperty_array_dim(info, fproperty_ptr)?;
+
+    let ty = match &*classname {
+        "BoolProperty" => PropertyType::Bool,
+        "FloatProperty" => PropertyType::Float32,
+        "DoubleProperty" => PropertyType::Float64,
+        "Int8Property" => PropertyType::Int8,
+        "Int16Property" => PropertyType::Int16,
+        "IntProperty" => PropertyType::Int32,
+        "Int64Property" => PropertyType::Int64,
+        "ByteProperty" => PropertyType::UInt8,
+        "UInt16Property" => PropertyType::UInt16,
+        "UInt32Property" => PropertyType::UInt32,
+        "UInt64Property" => PropertyType::UInt64,
+        "NameProperty" => PropertyType::Name,
+        "StrProperty" => PropertyType::String,
+        "TextProperty" => PropertyType::Text,
+        "ObjectProperty" => PropertyType::ClassPtr({
+            let inner = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
+            PropertyType::InlineClass(get_uobject_full_name(info, inner)?.into()).into()
+        }),
+        "ArrayProperty" => PropertyType::Vector({
+            let inner = get_tarray_prop_inner_prop(info, fproperty_ptr)?;
+            if let Some(prop) = get_fproperty_type(info, inner)? {
+                prop.into()
+            } else {
+                return Ok(None);
+            }
+        }),
+        "ClassProperty" => PropertyType::ClassPtr({
+            let inner = get_fclass_prop_pointee_prop(info, fproperty_ptr)?;
+            PropertyType::InlineClass(get_uobject_full_name(info, inner)?.into()).into()
+        }),
+        "StructProperty" => PropertyType::InlineClass({
+            let inner = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
+            get_uobject_full_name(info, inner)?.into()
+        }),
+        "EnumProperty" => PropertyType::InlineEnum({
+            let inner = get_fenum_prop_inner_enum(info, fproperty_ptr)?;
+            get_uobject_full_name(info, inner)?.into()
+        }),
+        "SetProperty" => PropertyType::Set({
+            let inner = get_tset_prop_inner_prop(info, fproperty_ptr)?;
+            if let Some(prop) = get_fproperty_type(info, inner)? {
+                prop.into()
+            } else {
+                return Ok(None);
+            }
+        }),
+        "MapProperty" => {
+            let (key, value) = get_tmap_prop_key_value_props(info, fproperty_ptr)?;
+            if let Some((key, value)) =
+                get_fproperty_type(info, key)?.zip(get_fproperty_type(info, value)?)
+            {
+                PropertyType::Map {
+                    key: key.into(),
+                    value: value.into(),
+                }
+            } else {
+                return Ok(None);
+            }
+        }
+        // "ClassPtrProperty" => todo!(),
+        // "DelegateProperty" => todo!(),
+        // "FieldPathProperty" => todo!(),
+        // "InterfaceProperty" => todo!(),
+        // "LazyObjectProperty" => todo!(),
+        // "SoftClassProperty" => todo!(),
+        // "SoftObjectProperty" => todo!(),
+        // "WeakObjectProperty" => todo!(),
+        _ => return Ok(None),
+    };
+
+    match array_dim {
+        2.. => Ok(Some(PropertyType::Array {
+            ty: ty.into(),
+            size: array_dim,
+        })),
+        1 => Ok(Some(ty)),
+        _ => unreachable!(),
+    }
 }
 
 pub fn sanitize_ident<'s>(ident: impl Into<Cow<'s, str>>) -> Cow<'s, str> {

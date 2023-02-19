@@ -3,30 +3,30 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct OwnerData {
-    package: String,
-    code_name: String,
+pub struct ClassData {
+    pub package: String,
+    pub code_name: String,
 }
 
 #[derive(Debug, Default)]
-pub struct DependencyTree {
-    packages: HashMap<IdName, OwnerData>,
+pub struct ClassRegistry {
+    packages: HashMap<IdName, ClassData>,
 }
 
-impl DependencyTree {
+impl ClassRegistry {
     pub fn set_owner(
         &mut self,
         identifier: impl Into<IdName>,
         package: impl Into<String>,
         code_name: impl Into<String>,
     ) {
-        self.packages.entry(identifier.into()).or_insert(OwnerData {
+        self.packages.entry(identifier.into()).or_insert(ClassData {
             package: package.into(),
             code_name: code_name.into(),
         });
     }
 
-    pub fn lookup(&self, identifier: &IdName) -> Option<&OwnerData> {
+    pub fn lookup(&self, identifier: &IdName) -> Option<&ClassData> {
         self.packages.get(identifier)
     }
 }

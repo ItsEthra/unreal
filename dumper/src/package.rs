@@ -3,18 +3,16 @@
 use crate::{
     ptr::Ptr,
     utils::{
-        get_ffield_class, get_ffield_class_name, get_ffield_name, get_fproperty_element_size,
-        get_fproperty_offset, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
-        get_uobject_name, get_uobject_package, get_ustruct_alignment, get_ustruct_children_props,
+        get_ffield_name, get_fproperty_element_size, get_fproperty_offset, get_fproperty_type,
+        get_uenum_names, get_uobject_code_name, get_uobject_full_name, get_uobject_name,
+        get_uobject_package, get_ustruct_alignment, get_ustruct_children_props, get_ustruct_parent,
         get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
 use eyre::Result;
-use log::{debug, info, trace};
-use sourcer::{
-    DependencyTree, EnumGenerator, IdName, Layout, PackageGenerator, ScriptStructGenerator,
-};
+use log::{info, trace};
+use sourcer::{ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, StructGenerator};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -33,6 +31,7 @@ impl Package {
     ) -> Result<()> {
         let enum_sc = info.objects.enum_static_class(info)?;
         let script_struct_sc = info.objects.script_struct_static_class(info)?;
+        let class_sc = info.objects.class_static_class(info)?;
 
         for obj in self.objects.iter().copied() {
             let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
@@ -40,7 +39,9 @@ impl Package {
             if is_a(enum_sc)? {
                 self.process_enum(info, obj, &mut *codegen.add_enum()?)?;
             } else if is_a(script_struct_sc)? {
-                self.process_script_struct(info, obj, &mut *codegen.add_script_struct()?)?;
+                // self.process_script_struct(info, obj, &mut *codegen.add_script_struct()?)?;
+            } else if is_a(class_sc)? {
+                self.process_ustruct(info, obj, &mut *codegen.add_struct()?)?;
             }
         }
 
@@ -95,48 +96,55 @@ impl Package {
         Ok(())
     }
 
-    fn process_script_struct<'cg>(
+    fn process_ustruct<'cg>(
         &self,
         info: &Info,
-        uscript_struct_ptr: Ptr,
-        sstruct_cg: &mut (dyn ScriptStructGenerator + 'cg),
+        ustruct_ptr: Ptr,
+        ustruct_cg: &mut (dyn StructGenerator + 'cg),
     ) -> Result<()> {
-        let struct_name = get_uobject_code_name(info, uscript_struct_ptr)?;
-        let full_name = get_uobject_full_name(info, uscript_struct_ptr)?;
+        let struct_name = get_uobject_code_name(info, ustruct_ptr)?;
+        let full_name = get_uobject_full_name(info, ustruct_ptr)?;
 
-        let size = get_ustruct_size(info, uscript_struct_ptr)?;
-        let alignment = get_ustruct_alignment(info, uscript_struct_ptr)?;
+        let size = get_ustruct_size(info, ustruct_ptr)?;
+        let alignment = get_ustruct_alignment(info, ustruct_ptr)?;
 
-        sstruct_cg.begin(&struct_name, IdName(full_name), Layout { size, alignment })?;
+        let parent: Option<IdName> = get_ustruct_parent(info, ustruct_ptr)?
+            .map(|p| get_uobject_full_name(info, p))
+            .transpose()?
+            .map(Into::into);
+
+        ustruct_cg.begin(
+            &struct_name,
+            full_name.into(),
+            Layout { size, alignment },
+            parent,
+        )?;
 
         let callback = |ffield_ptr: Ptr| {
             let field_name = get_ffield_name(info, ffield_ptr)?;
-            let class = get_ffield_class(info, ffield_ptr)?;
-            let _classname = get_ffield_class_name(info, class)?;
 
             let elem_size = get_fproperty_element_size(info, ffield_ptr)?;
             let offset = get_fproperty_offset(info, ffield_ptr)?;
-
-            if struct_name == "FPerPlatformSettings" {
-                debug!("{ffield_ptr:?}");
+            if let Some(prop_ty) = get_fproperty_type(info, ffield_ptr)? {
+                ustruct_cg.append_field(&field_name, prop_ty, elem_size, offset)?;
             }
 
-            sstruct_cg.append_field(&field_name, None, elem_size, offset)?;
+            // log::debug!("{struct_name} {field_name} {_classname}");
 
             Ok(())
         };
 
-        if let Some(props) = get_ustruct_children_props(info, uscript_struct_ptr)? {
+        if let Some(props) = get_ustruct_children_props(info, ustruct_ptr)? {
             iter_ffield_linked_list(info, props, callback)?;
         }
 
-        sstruct_cg.end()?;
+        ustruct_cg.end()?;
 
         Ok(())
     }
 }
 
-pub fn dump_packages(info: &Info, deps: &mut DependencyTree) -> Result<Vec<Package>> {
+pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Package>> {
     let mut map: HashMap<String, Vec<Ptr>> = HashMap::new();
 
     let struct_sc = info.objects.struct_static_class(info)?;
@@ -158,7 +166,7 @@ pub fn dump_packages(info: &Info, deps: &mut DependencyTree) -> Result<Vec<Packa
 
         let obj_full_name = get_uobject_full_name(info, obj)?;
         let obj_code_name = get_uobject_code_name(info, obj)?;
-        deps.set_owner(obj_full_name, &package_name, obj_code_name);
+        registry.set_owner(obj_full_name, &package_name, obj_code_name);
 
         let classes = map.entry(package_name).or_insert(vec![]);
         classes.push(obj);
