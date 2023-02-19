@@ -118,5 +118,7 @@ fn main() -> Result<()> {
         pkg_cg.end()?;
     }
 
+    sdkgen.end()?;
+
     Ok(())
 }
