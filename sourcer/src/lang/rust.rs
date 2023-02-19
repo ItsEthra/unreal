@@ -3,6 +3,7 @@ use crate::{
     SdkGenerator, StructGenerator,
 };
 use std::{
+    borrow::Cow,
     collections::HashSet,
     fs::{self, File, OpenOptions},
     io::{Result, Write},
@@ -271,4 +272,60 @@ struct Module {
     imports: HashSet<IdName>,
     enums: Vec<u8>,
     classes: Vec<u8>,
+}
+
+struct TypeStringifier<'a> {
+    registry: &'a ClassRegistry,
+    deps: HashSet<IdName>,
+}
+
+impl<'a> TypeStringifier<'a> {
+    pub fn new(registry: &'a ClassRegistry) -> Self {
+        Self {
+            registry,
+            deps: HashSet::new(),
+        }
+    }
+
+    pub fn stringify(&mut self, ty: PropertyType) -> Cow<'a, str> {
+        let mut fetch_dep = |id: IdName| -> &str {
+            self.deps.insert(id.clone());
+            &self
+                .registry
+                .lookup(&id)
+                .expect("Missing dependency")
+                .code_name
+        };
+
+        match ty {
+            PropertyType::Int8 => "i8".into(),
+            PropertyType::Int16 => "i16".into(),
+            PropertyType::Int32 => "i32".into(),
+            PropertyType::Int64 => "i64".into(),
+            PropertyType::UInt8 => "u8".into(),
+            PropertyType::UInt16 => "u16".into(),
+            PropertyType::UInt32 => "u32".into(),
+            PropertyType::UInt64 => "u64".into(),
+            PropertyType::Float32 => "f32".into(),
+            PropertyType::Float64 => "f64".into(),
+            PropertyType::Bool => "bool".into(),
+            PropertyType::Array { ty, size } => format!("[{}; {size}]", self.stringify(*ty)).into(),
+            PropertyType::Vector(ty) => format!("ucore::TArray<{}>", self.stringify(*ty)).into(),
+            PropertyType::Map { key, value } => format!(
+                "ucore::TMap<{}, {}>",
+                self.stringify(*key),
+                self.stringify(*value)
+            )
+            .into(),
+            PropertyType::Set(ty) => format!("ucore::TArray<{}>", self.stringify(*ty)).into(),
+            PropertyType::ClassPtr(ty) => {
+                format!("ucore::ClassPtr<{}>", self.stringify(*ty)).into()
+            }
+            PropertyType::Name => "ucore::FName".into(),
+            PropertyType::String => "ucore::FString".into(),
+            PropertyType::Text => "ucore::FText".into(),
+            PropertyType::InlineClass(id) => fetch_dep(id).into(),
+            PropertyType::InlineEnum(id) => fetch_dep(id).into(),
+        }
+    }
 }
