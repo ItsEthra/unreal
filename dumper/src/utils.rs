@@ -3,7 +3,7 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
-use sourcer::PropertyType;
+use sourcer::{Layout, PropertyType};
 use std::{
     borrow::Cow,
     iter::successors,
@@ -292,6 +292,13 @@ pub fn get_ustruct_parent(info: &Info, ustruct_ptr: Ptr) -> Result<Option<Ptr>> 
     )?;
 
     Ok(parent.to_option())
+}
+
+pub fn get_ustruct_layout(info: &Info, ustruct_ptr: Ptr) -> Result<Layout> {
+    Ok(Layout {
+        size: get_ustruct_size(info, ustruct_ptr)?,
+        alignment: get_ustruct_alignment(info, ustruct_ptr)?,
+    })
 }
 
 pub fn get_ustruct_size(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {

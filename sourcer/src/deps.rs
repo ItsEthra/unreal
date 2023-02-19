@@ -1,4 +1,4 @@
-use crate::IdName;
+use crate::{IdName, Layout};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -6,6 +6,8 @@ use std::collections::HashMap;
 pub struct ClassData {
     pub package: String,
     pub code_name: String,
+    // Not set for enums
+    pub layout: Option<Layout>,
 }
 
 #[derive(Debug, Default)]
@@ -19,10 +21,12 @@ impl ClassRegistry {
         identifier: impl Into<IdName>,
         package: impl Into<String>,
         code_name: impl Into<String>,
+        layout: Option<Layout>,
     ) {
         self.packages.entry(identifier.into()).or_insert(ClassData {
             package: package.into(),
             code_name: code_name.into(),
+            layout,
         });
     }
 

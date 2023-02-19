@@ -5,8 +5,9 @@ use crate::{
     utils::{
         get_ffield_name, get_fproperty_element_size, get_fproperty_offset, get_fproperty_type,
         get_uenum_names, get_uobject_code_name, get_uobject_full_name, get_uobject_name,
-        get_uobject_package, get_ustruct_alignment, get_ustruct_children_props, get_ustruct_parent,
-        get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
+        get_uobject_package, get_ustruct_alignment, get_ustruct_children_props, get_ustruct_layout,
+        get_ustruct_parent, get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list,
+        sanitize_ident,
     },
     Info,
 };
@@ -164,9 +165,15 @@ pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Pa
             trace!("Found new package {package_name}");
         }
 
+        let layout = if is_a(struct_sc)? {
+            Some(get_ustruct_layout(info, obj)?)
+        } else {
+            None
+        };
+
         let obj_full_name = get_uobject_full_name(info, obj)?;
         let obj_code_name = get_uobject_code_name(info, obj)?;
-        registry.set_owner(obj_full_name, &package_name, obj_code_name);
+        registry.set_owner(obj_full_name, &package_name, obj_code_name, layout);
 
         let classes = map.entry(package_name).or_insert(vec![]);
         classes.push(obj);
