@@ -11,7 +11,7 @@ use crate::{
     },
     Info,
 };
-use eyre::Result;
+use eyre::{eyre, Result};
 use log::{info, trace};
 use sourcer::{ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, StructGenerator};
 use std::{
@@ -19,9 +19,14 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
+struct Object {
+    ptr: Ptr,
+    id: IdName,
+}
+
 pub struct Package {
     pub name: String,
-    objects: Vec<Ptr>,
+    objects: Vec<Object>,
 }
 
 impl Package {
@@ -34,13 +39,13 @@ impl Package {
         let script_struct_sc = info.objects.script_struct_static_class(info)?;
         let class_sc = info.objects.class_static_class(info)?;
 
-        for obj in self.objects.iter().copied() {
-            let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
+        for Object { ptr, .. } in self.objects.iter() {
+            let is_a = |sclass: Ptr| is_uobject_inherits(info, *ptr, sclass);
 
             if is_a(enum_sc)? {
-                self.process_enum(info, obj, &mut *codegen.add_enum()?)?;
+                self.process_enum(info, *ptr, &mut *codegen.add_enum()?)?;
             } else if is_a(script_struct_sc)? || is_a(class_sc)? {
-                self.process_ustruct(info, obj, &mut *codegen.add_struct()?)?;
+                self.process_ustruct(info, *ptr, &mut *codegen.add_struct()?)?;
             }
         }
 
@@ -144,16 +149,16 @@ impl Package {
 }
 
 pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Package>> {
-    let mut map: HashMap<String, Vec<Ptr>> = HashMap::new();
+    let mut map: HashMap<String, Vec<Object>> = HashMap::new();
 
     let struct_sc = info.objects.struct_static_class(info)?;
     let enum_sc = info.objects.enum_static_class(info)?;
     let function_sc = info.objects.function_static_class(info)?;
 
-    for obj in info.objects.objs.iter().copied() {
-        let Some(package) = get_uobject_package(info, obj) else { continue };
+    for ptr in info.objects.objs.iter().copied() {
+        let Some(package) = get_uobject_package(info, ptr) else { continue };
 
-        let is_a = |sclass: Ptr| is_uobject_inherits(info, obj, sclass);
+        let is_a = |sclass: Ptr| is_uobject_inherits(info, ptr, sclass);
         if !is_a(struct_sc)? && !is_a(enum_sc)? && !is_a(function_sc)? {
             continue;
         }
@@ -164,17 +169,20 @@ pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Pa
         }
 
         let layout = if is_a(struct_sc)? {
-            Some(get_ustruct_layout(info, obj)?)
+            Some(get_ustruct_layout(info, ptr)?)
         } else {
             None
         };
 
-        let obj_full_name = get_uobject_full_name(info, obj)?;
-        let obj_code_name = get_uobject_code_name(info, obj)?;
+        let obj_full_name = get_uobject_full_name(info, ptr)?;
+        let obj_code_name = get_uobject_code_name(info, ptr)?;
         registry.set_owner(obj_full_name, &package_name, obj_code_name, layout);
 
         let classes = map.entry(package_name).or_insert(vec![]);
-        classes.push(obj);
+        classes.push(Object {
+            ptr,
+            id: get_uobject_full_name(info, ptr)?.into(),
+        });
     }
 
     info!("Found {} packages", map.len());
@@ -185,3 +193,32 @@ pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Pa
         .collect();
     Ok(packages)
 }
+
+// Merges `target` into `merger`
+pub fn merge(
+    merger: &str,
+    target: &str,
+    registry: &mut ClassRegistry,
+    packages: &mut Vec<Package>,
+) -> Result<()> {
+    let target = packages.remove(
+        packages
+            .iter()
+            .position(|p| p.name == target)
+            .ok_or(eyre!("Failed to find package {target}"))?,
+    );
+
+    for Object { id, .. } in target.objects.iter() {
+        registry.lookup_mut(id).unwrap().package = merger.to_owned();
+    }
+
+    let merger = packages
+        .iter_mut()
+        .find(|p| p.name == merger)
+        .ok_or(eyre!("Failed to find package {merger}"))?;
+    merger.objects.extend(target.objects);
+
+    Ok(())
+}
+
+fn fun_name() {}
