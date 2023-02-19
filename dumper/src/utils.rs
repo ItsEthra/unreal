@@ -3,7 +3,6 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
-use sourcer::{ElementType, PropertyData, PropertyType};
 use std::{
     borrow::Cow,
     iter::successors,
@@ -303,49 +302,6 @@ pub fn get_ustruct_alignment(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     )?;
 
     Ok(alignment as usize)
-}
-
-pub fn get_fproperty_array_prop_data(
-    info: &Info,
-    fproperty_ptr: Ptr,
-    prop_ty: Option<PropertyType>,
-) -> Result<Option<PropertyData>> {
-    let dim = get_fproperty_array_dim(info, fproperty_ptr)?;
-
-    let array_elem_ty = match dim {
-        2.. if prop_ty.is_none() => Some(ElementType::Unknown),
-        2.. if prop_ty.unwrap().is_primitive() => Some(ElementType::Primitive),
-        2.. => {
-            let class = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
-            Some(ElementType::Complex(
-                get_uobject_full_name(info, class)?.into(),
-            ))
-        }
-        // 2.. => None,
-        1 => None,
-        _ => unreachable!(),
-    };
-
-    Ok(array_elem_ty.map(|ty| PropertyData::Array { ty, size: dim }))
-}
-
-pub fn get_fproperty_prop_data(
-    info: &Info,
-    fproperty_ptr: Ptr,
-    prop_ty: PropertyType,
-) -> Result<Option<PropertyData>> {
-    let array_data = get_fproperty_array_prop_data(info, fproperty_ptr, Some(prop_ty))?;
-    let prop_data = match prop_ty {
-        PropertyType::Object | PropertyType::Struct => {
-            let class = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
-            Some(PropertyData::Qualify {
-                ty: get_uobject_full_name(info, class)?.into(),
-            })
-        }
-        _ => None,
-    };
-
-    Ok(array_data.or(prop_data))
 }
 
 pub fn get_tarray_prop_inner_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {

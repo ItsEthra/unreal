@@ -14,7 +14,6 @@ pub trait ScriptStructGenerator {
         &mut self,
         field_name: &str,
         field_ty: Option<PropertyType>,
-        field_data: Option<PropertyData>,
         elem_size: usize,
         offset: usize,
     ) -> Result<()>;
