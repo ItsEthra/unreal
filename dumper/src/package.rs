@@ -117,6 +117,10 @@ impl Package {
             .transpose()?
             .map(Into::into);
 
+        trace!(
+            "Processing {struct_name}({full_name})[Size: 0x{size:X}. Alignment: 0x{alignment:X}]"
+        );
+
         ustruct_cg.begin(
             &struct_name,
             full_name.into(),
@@ -130,10 +134,15 @@ impl Package {
             let elem_size = get_fproperty_element_size(info, ffield_ptr)?;
             let offset = get_fproperty_offset(info, ffield_ptr)?;
             if let Some(prop_ty) = get_fproperty_type(info, ffield_ptr)? {
+                trace!(
+                    "\t{field_name}: {prop_ty:?}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
+                );
                 ustruct_cg.append_field(&field_name, prop_ty, elem_size, offset)?;
+            } else {
+                trace!(
+                    "\t{field_name}: _UNKNOWN_. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
+                );
             }
-
-            // log::debug!("{struct_name} {field_name} {_classname}");
 
             Ok(())
         };
