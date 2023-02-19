@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use derive_more::Display;
 
 #[derive(Debug)]
@@ -27,12 +29,12 @@ fn test_align() {
 
 /// Fully qualified name
 #[derive(Debug, Display, PartialEq, Eq, Hash, Clone)]
-pub struct IdName(pub String);
+pub struct IdName(pub Rc<String>);
 
 impl From<String> for IdName {
     #[inline]
     fn from(value: String) -> Self {
-        Self(value)
+        Self(value.into())
     }
 }
 

@@ -111,9 +111,11 @@ fn main() -> Result<()> {
     };
 
     for package in packages.iter() {
-        let pkg_cg = sdkgen.begin_package(&package.name, &registry)?;
+        let mut pkg_cg = sdkgen.begin_package(&package.name, &registry)?;
 
-        package.process(&info, pkg_cg)?;
+        package.process(&info, &mut *pkg_cg)?;
+
+        pkg_cg.end()?;
     }
 
     Ok(())
