@@ -1,10 +1,12 @@
 use crate::{
-    EnumGenerator, IdName, Layout, PackageGenerator, PropertyType, SdkGenerator, StructGenerator,
+    ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType, SdkGenerator,
+    StructGenerator,
 };
 use std::{
     fs::{self, File, OpenOptions},
     io::{Result, Write},
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 struct EnumGen<'a>(&'a mut Crate);
@@ -41,7 +43,7 @@ impl<'a> EnumGenerator for EnumGen<'a> {
     }
 }
 
-struct StructGen<'a>(&'a mut Crate);
+struct StructGen<'a>(&'a mut Crate, &'a ClassRegistry);
 impl<'a> StructGenerator for StructGen<'a> {
     fn begin(
         &mut self,
@@ -77,14 +79,18 @@ impl<'a> StructGenerator for StructGen<'a> {
     }
 }
 
-struct PackageGen(Crate);
+struct PackageGen {
+    this: Crate,
+    registry: Rc<ClassRegistry>,
+}
+
 impl PackageGenerator for PackageGen {
     fn add_enum<'new>(&'new mut self) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
-        Ok(Box::new(EnumGen(&mut self.0)))
+        Ok(Box::new(EnumGen(&mut self.this)))
     }
 
     fn add_struct<'new>(&'new mut self) -> Result<Box<dyn crate::StructGenerator + 'new>> {
-        Ok(Box::new(StructGen(&mut self.0)))
+        Ok(Box::new(StructGen(&mut self.this, &self.registry)))
     }
 }
 
@@ -97,6 +103,7 @@ impl SdkGenerator for RustSdkGenerator {
     fn begin_package<'sdk: 'pkg, 'pkg>(
         &'sdk mut self,
         name: &str,
+        registry: &Rc<ClassRegistry>,
     ) -> Result<Box<dyn PackageGenerator + 'pkg>> {
         // Add to workspace
         {
@@ -147,7 +154,10 @@ impl SdkGenerator for RustSdkGenerator {
             writeln!(package.librs, "")?;
         }
 
-        Ok(Box::new(PackageGen(package)))
+        Ok(Box::new(PackageGen {
+            this: package,
+            registry: registry.clone(),
+        }))
     }
 
     fn new(path: impl AsRef<Path>) -> Result<Self>
