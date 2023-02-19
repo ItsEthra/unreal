@@ -58,7 +58,7 @@ struct Args {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    env_logger::init();
+    env_logger::builder().format_timestamp(None).init();
 
     let args: Args = argh::from_env();
 
