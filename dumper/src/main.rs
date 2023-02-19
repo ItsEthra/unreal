@@ -1,3 +1,4 @@
+use crate::package::merge;
 use argh::FromArgs;
 use eyre::Result;
 use log::info;
@@ -108,8 +109,10 @@ fn main() -> Result<()> {
 
     let (packages, registry) = {
         let mut rg = ClassRegistry::default();
-        let pkgs = dump_packages(&info, &mut rg)?;
+        let mut pkgs = dump_packages(&info, &mut rg)?;
         info!("Registry entries: {}", rg.len());
+
+        merge("Engine", "Landscape", &mut rg, &mut pkgs)?;
 
         (pkgs, Rc::new(rg))
     };

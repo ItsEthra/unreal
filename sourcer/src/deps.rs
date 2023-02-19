@@ -34,6 +34,10 @@ impl ClassRegistry {
         self.packages.get(identifier)
     }
 
+    pub fn lookup_mut(&mut self, identifier: &IdName) -> Option<&mut ClassData> {
+        self.packages.get_mut(identifier)
+    }
+
     pub fn len(&self) -> usize {
         self.packages.len()
     }
