@@ -404,7 +404,7 @@ impl<'a> TypeStringifier<'a> {
             .into(),
             PropertyType::Set(ty) => format!("ucore::TSet<{}>", self.stringify(*ty)).into(),
             PropertyType::ClassPtr(ty) => {
-                format!("Option<ucore::ClassPtr<{}>>", self.stringify(*ty)).into()
+                format!("Option<ucore::Ptr<{}>>", self.stringify(*ty)).into()
             }
             PropertyType::Name => "ucore::FName".into(),
             PropertyType::String => "ucore::FString".into(),

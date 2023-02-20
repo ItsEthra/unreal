@@ -1,5 +1,4 @@
-#![allow(dead_code)]
-
+use crate::GlobalContext;
 use std::{
     borrow::Cow,
     fmt::{self, Display},
@@ -8,28 +7,22 @@ use std::{
     str::from_utf8_unchecked,
 };
 
-use crate::GlobalContext;
-
 const NAME_SIZE: usize = 1024;
 
-const FNAME_MAX_BLOCK_BITS: u32 = 13;
+// const FNAME_MAX_BLOCK_BITS: u32 = 13;
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
-const FNAME_MAX_BLOCKS: u32 = 1 << FNAME_MAX_BLOCK_BITS;
+// const FNAME_MAX_BLOCKS: u32 = 1 << FNAME_MAX_BLOCK_BITS;
 const FNAME_BLOCK_OFFSETS: u32 = 1 << FNAME_BLOCK_OFFSET_BITS;
-const FNAME_ENTRY_ID_BITS: u32 = FNAME_BLOCK_OFFSET_BITS + FNAME_MAX_BLOCK_BITS;
-const FNAME_ENTRY_ID_MASK: u32 = (1 << FNAME_ENTRY_ID_BITS) - 1;
+// const FNAME_ENTRY_ID_BITS: u32 = FNAME_BLOCK_OFFSET_BITS + FNAME_MAX_BLOCK_BITS;
+// const FNAME_ENTRY_ID_MASK: u32 = (1 << FNAME_ENTRY_ID_BITS) - 1;
 
+#[repr(transparent)]
 struct FNameEntryHeader<const WIDE_BIT: usize, const LEN_BIT: usize>(u16);
 
 impl<const WIDE_BIT: usize, const LEN_BIT: usize> FNameEntryHeader<WIDE_BIT, LEN_BIT> {
     #[inline]
     fn is_wide(&self) -> bool {
         (self.0 >> WIDE_BIT) & 1 != 0
-    }
-
-    #[inline]
-    fn is_ansii(&self) -> bool {
-        (self.0 >> WIDE_BIT) & 1 == 0
     }
 
     fn len(&self) -> usize {
@@ -160,7 +153,7 @@ impl<const STRIDE: usize> FNamePool<STRIDE> {
     }
 }
 
-#[repr(C)]
+#[repr(transparent)]
 pub struct FName<
     const STRIDE: usize,
     const SIZE: usize,
