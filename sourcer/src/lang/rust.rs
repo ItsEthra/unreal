@@ -153,7 +153,7 @@ impl<'a> StructGenerator for StructGen<'a> {
             format!("{field_name}_{offset:X}")
         } else {
             self.field_names.insert(field_name.to_owned());
-            format!("{field_name}")
+            field_name.to_owned()
         };
 
         writeln!(
@@ -229,7 +229,7 @@ impl PackageGenerator for PackageGen {
             writeln!(self.this.librs, "use {pkg}::*;")?;
         }
 
-        writeln!(self.this.librs, "")?;
+        writeln!(self.this.librs)?;
 
         self.this.librs.write_all(&self.module.enums)?;
         self.this.librs.write_all(&self.module.classes)?;
@@ -292,7 +292,7 @@ impl SdkGenerator for RustSdkGenerator {
                 writeln!(package.librs, "#![allow({warn})]")?;
             }
 
-            writeln!(package.librs, "")?;
+            writeln!(package.librs)?;
         }
 
         Ok(Box::new(PackageGen {
