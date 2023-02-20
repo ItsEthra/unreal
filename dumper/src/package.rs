@@ -70,7 +70,7 @@ impl Package {
             let name: Cow<str> = if variants.contains(&*name) {
                 format!("{name}_{value}").into()
             } else {
-                name.into()
+                name
             };
 
             variants.insert(name.to_string());
@@ -229,5 +229,3 @@ pub fn merge(
 
     Ok(())
 }
-
-fn fun_name() {}

@@ -68,19 +68,19 @@ pub enum PropertyType {
 
 impl PropertyType {
     pub fn is_primitive(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::Bool
-            | Self::Int8
-            | Self::Int16
-            | Self::Int32
-            | Self::Int64
-            | Self::UInt8
-            | Self::UInt16
-            | Self::UInt32
-            | Self::UInt64
-            | Self::Float32
-            | Self::Float64 => true,
-            _ => false,
-        }
+                | Self::Int8
+                | Self::Int16
+                | Self::Int32
+                | Self::Int64
+                | Self::UInt8
+                | Self::UInt16
+                | Self::UInt32
+                | Self::UInt64
+                | Self::Float32
+                | Self::Float64
+        )
     }
 }

@@ -7,6 +7,7 @@ pub struct ClassPtr<T> {
     ptr: NonNull<T>,
 }
 
+#[allow(clippy::should_implement_trait)]
 impl<T> ClassPtr<T> {
     #[inline]
     pub fn as_mut<'a>(&mut self) -> &'a mut T {
