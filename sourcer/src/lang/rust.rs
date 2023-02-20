@@ -60,7 +60,6 @@ struct StructGen<'a> {
     offset: usize,
     layout: Layout,
     name: String,
-    field_names: HashSet<String>,
 }
 
 impl<'a> StructGenerator for StructGen<'a> {
@@ -139,26 +138,18 @@ impl<'a> StructGenerator for StructGen<'a> {
         if offset > self.offset {
             writeln!(
                 self.module.classes,
-                "\t\t_pad_0x{:X}: [u8; 0x{:X}],",
+                "\t\t_pad_0x{:X}: [u8; 0x{:X}], // Offset: 0x{}. Size: 0x{:X}",
                 self.offset,
-                offset - self.offset
+                offset - self.offset,
+                self.offset,
+                offset - self.offset,
             )?;
         }
         self.offset = offset + size;
 
-        // Sometimes field names are duplicated for whatever reason
-        let name = if self.field_names.contains(field_name) {
-            warn!("Field {field_name} of type {typename} is duplicate");
-
-            format!("{field_name}_{offset:X}")
-        } else {
-            self.field_names.insert(field_name.to_owned());
-            field_name.to_owned()
-        };
-
         writeln!(
             self.module.classes,
-            "\t\tpub {name}: {typename}, // Offset: 0x{offset:X}. Size: 0x{size:X}"
+            "\t\tpub {field_name}: {typename}, // Offset: 0x{offset:X}. Size: 0x{size:X}"
         )?;
 
         Ok(())
@@ -169,9 +160,11 @@ impl<'a> StructGenerator for StructGen<'a> {
         if self.offset != expected_size {
             writeln!(
                 self.module.classes,
-                "\t\t_pad_0x{:x}: [u8; 0x{:X}],",
+                "\t\t_pad_0x{:X}: [u8; 0x{:X}], // Offset: 0x{:X}. Size: 0x{:X}",
                 self.offset,
-                expected_size - self.offset
+                expected_size - self.offset,
+                self.offset,
+                expected_size - self.offset,
             )?;
         }
 
@@ -204,7 +197,6 @@ impl PackageGenerator for PackageGen {
             registry: &self.registry,
             offset: 0,
             layout: Layout::default(),
-            field_names: HashSet::new(),
             name: String::new(),
         }))
     }
