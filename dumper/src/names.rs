@@ -43,34 +43,61 @@ impl GNames {
 }
 
 pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
-    let mut block_slot_ptr = gnames + size_of::<usize>() * if cfg!(windows) { 2 } else { 1 };
+    let current_block_ptr = gnames + size_of::<usize>() * if cfg!(windows) { 1 } else { 0 };
+    let mut current_block = 0u32;
+    info.process
+        .read_buf(current_block_ptr, bytes_of_mut(&mut current_block))?;
+
+    let current_byte_cursor_ptr =
+        gnames + size_of::<usize>() * if cfg!(windows) { 1 } else { 0 } + size_of::<u32>();
+    let mut current_byte_cursor = 0u32;
+    info.process.read_buf(
+        current_byte_cursor_ptr,
+        bytes_of_mut(&mut current_byte_cursor),
+    )?;
+    trace!("Current block: {current_block}. Current byte cursor: 0x{current_byte_cursor:X}");
+
+    let first_block_slot_ptr = current_byte_cursor_ptr + size_of::<u32>();
     let mut block_ptr = Ptr(0);
     let mut blocks = vec![];
 
     let mut name_count = 0;
-    loop {
-        info.process
-            .read_buf(block_slot_ptr, bytes_of_mut(&mut block_ptr))?;
+    for i in 0..current_block as usize {
+        info.process.read_buf(
+            first_block_slot_ptr + size_of::<usize>() * i,
+            bytes_of_mut(&mut block_ptr),
+        )?;
 
-        if block_ptr.is_zero() {
-            break;
-        }
+        let block_size = OFFSETS.stride * FNAME_BLOCK_OFFSETS as usize;
 
-        trace!("Current name block: {block_ptr:?}");
-        let block = dump_name_block(info, block_ptr)?;
+        trace!("Dumping name block: {block_ptr:?}");
+        let block = dump_name_block(info, block_ptr, block_size)?;
+
+        let old_name_count = name_count;
         block.for_each_name(|_| name_count += 1);
+        trace!("Found {} names", name_count - old_name_count);
 
         blocks.push(block);
-
-        block_slot_ptr += size_of::<usize>();
     }
+
+    // Dump last block
+    {
+        info.process.read_buf(
+            first_block_slot_ptr + size_of::<usize>() * current_block as usize,
+            bytes_of_mut(&mut block_ptr),
+        )?;
+
+        trace!("Dumping name block: {block_ptr:?}");
+        let last_block = dump_name_block(info, block_ptr, current_byte_cursor as usize)?;
+        blocks.push(last_block);
+    }
+
     info!("Dumped {name_count} names");
 
     Ok(GNames {
         blocks: blocks.into(),
     })
 }
-pub struct NameBlock(Box<[u8]>);
 
 pub struct FName<'a> {
     pub header: FNameEntryHeader,
@@ -83,6 +110,7 @@ impl<'a> fmt::Debug for FName<'a> {
     }
 }
 
+pub struct NameBlock(Box<[u8]>);
 impl NameBlock {
     fn at(&self, pos: usize) -> FName {
         let header: FNameEntryHeader = self.0[pos..pos + 2].try_into().unwrap();
@@ -115,9 +143,7 @@ impl NameBlock {
     }
 }
 
-fn dump_name_block(info: &Info, name_block_ptr: Ptr) -> Result<NameBlock> {
-    let block_size = OFFSETS.stride * FNAME_BLOCK_OFFSETS as usize;
-
+fn dump_name_block(info: &Info, name_block_ptr: Ptr, block_size: usize) -> Result<NameBlock> {
     // I am not using `MaybeUninit<u8>` here because its making everything else
     // look ugly because rustc can't stabilize very useful feature smh.
     let mut data: Vec<u8> = Vec::with_capacity(block_size);
