@@ -1,8 +1,23 @@
 #![allow(dead_code)]
 
-use std::{borrow::Cow, marker::PhantomData, str::from_utf8_unchecked};
+use std::{
+    borrow::Cow,
+    fmt::{self, Display},
+    marker::PhantomData,
+    mem::size_of,
+    str::from_utf8_unchecked,
+};
+
+use crate::GlobalContext;
 
 const NAME_SIZE: usize = 1024;
+
+const FNAME_MAX_BLOCK_BITS: u32 = 13;
+const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
+const FNAME_MAX_BLOCKS: u32 = 1 << FNAME_MAX_BLOCK_BITS;
+const FNAME_BLOCK_OFFSETS: u32 = 1 << FNAME_BLOCK_OFFSET_BITS;
+const FNAME_ENTRY_ID_BITS: u32 = FNAME_BLOCK_OFFSET_BITS + FNAME_MAX_BLOCK_BITS;
+const FNAME_ENTRY_ID_MASK: u32 = (1 << FNAME_ENTRY_ID_BITS) - 1;
 
 struct FNameEntryHeader<const WIDE_BIT: usize, const LEN_BIT: usize>(u16);
 
@@ -101,13 +116,98 @@ impl<const HEADER: usize, const DATA: usize, const WIDE_BIT: usize, const LEN_BI
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-struct FNameEntryId {
-    id: u32,
+type FNameEntryId = u32;
+
+#[repr(C)]
+struct FNameEntryHandle {
+    block: u32,
+    offset: u32,
+}
+
+impl From<FNameEntryId> for FNameEntryHandle {
+    #[inline]
+    fn from(id: FNameEntryId) -> Self {
+        Self {
+            block: id >> FNAME_BLOCK_OFFSET_BITS,
+            offset: id & (FNAME_BLOCK_OFFSETS - 1),
+        }
+    }
+}
+
+pub(crate) struct FNamePool<const STRIDE: usize>(PhantomData<()>);
+impl<const STRIDE: usize> FNamePool<STRIDE> {
+    fn resolve<
+        const HEADER: usize,
+        const DATA: usize,
+        const WIDE_BIT: usize,
+        const LEN_BIT: usize,
+    >(
+        &self,
+        handle: impl Into<FNameEntryHandle>,
+    ) -> &FNameEntry<HEADER, DATA, WIDE_BIT, LEN_BIT> {
+        let FNameEntryHandle { block, offset } = handle.into();
+        unsafe {
+            (self as *const Self)
+                .cast::<u8>()
+                .add(size_of::<usize>() * (2 + block as usize))
+                .cast::<*const u8>()
+                .read_volatile()
+                .add(offset as usize)
+                .cast::<FNameEntry<HEADER, DATA, WIDE_BIT, LEN_BIT>>()
+                .as_ref()
+                .unwrap()
+        }
+    }
 }
 
 #[repr(C)]
-pub struct FName<const SIZE: usize, const INDEX: usize>([u8; SIZE]);
+pub struct FName<
+    const STRIDE: usize,
+    const SIZE: usize,
+    const INDEX: usize,
+    const HEADER: usize,
+    const DATA: usize,
+    const WIDE_BIT: usize,
+    const LEN_BIT: usize,
+>([u8; SIZE]);
 
-impl<const SIZE: usize, const INDEX: usize> FName<SIZE, INDEX> {}
+impl<
+        const STRIDE: usize,
+        const SIZE: usize,
+        const INDEX: usize,
+        const HEADER: usize,
+        const DATA: usize,
+        const WIDE_BIT: usize,
+        const LEN_BIT: usize,
+    > FName<STRIDE, SIZE, INDEX, HEADER, DATA, WIDE_BIT, LEN_BIT>
+{
+    fn index(&self) -> FNameEntryId {
+        unsafe {
+            (self as *const Self)
+                .cast::<u8>()
+                .add(INDEX)
+                .cast::<FNameEntryId>()
+                .read_volatile()
+        }
+    }
+}
+
+impl<
+        const STRIDE: usize,
+        const SIZE: usize,
+        const INDEX: usize,
+        const HEADER: usize,
+        const DATA: usize,
+        const WIDE_BIT: usize,
+        const LEN_BIT: usize,
+    > Display for FName<STRIDE, SIZE, INDEX, DATA, HEADER, WIDE_BIT, LEN_BIT>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let idx = self.index();
+        let string = GlobalContext::<STRIDE>::get()
+            .name_pool()
+            .resolve::<HEADER, DATA, WIDE_BIT, LEN_BIT>(idx)
+            .to_str();
+        write!(f, "{string}")
+    }
+}
