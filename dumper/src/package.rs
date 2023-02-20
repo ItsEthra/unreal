@@ -128,11 +128,18 @@ impl Package {
             parent,
         )?;
 
+        let mut field_names = HashMap::new();
         let callback = |ffield_ptr: Ptr| {
-            let field_name = get_ffield_name(info, ffield_ptr)?;
+            let mut field_name = get_ffield_name(info, ffield_ptr)?;
 
             let elem_size = get_fproperty_element_size(info, ffield_ptr)?;
             let offset = get_fproperty_offset(info, ffield_ptr)?;
+
+            if let Some(&count) = field_names.get(&field_name) {
+                field_name = format!("{field_name}_{count}").into();
+            }
+            *field_names.entry(field_name.clone()).or_insert(0) += 1;
+
             if let Some(prop_ty) = get_fproperty_type(info, ffield_ptr)? {
                 trace!(
                     "\t{field_name}: {prop_ty:?}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
