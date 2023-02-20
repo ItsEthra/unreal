@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::{names::FNameEntryId, ptr::Ptr, Info, OFFSETS};
+use crate::{names::FNameEntryId, ptr::Ptr, Info};
 use bytemuck::bytes_of_mut;
 use eyre::Result;
 use sourcer::{Layout, PropertyType};
@@ -13,7 +13,7 @@ use std::{
 pub fn get_uobject_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
     let mut index = FNameEntryId::default();
     info.process.read_buf(
-        uobject_ptr + OFFSETS.uobject.name + OFFSETS.fname.index,
+        uobject_ptr + info.offsets.uobject.name + info.offsets.fname.index,
         bytes_of_mut(&mut index),
     )?;
 
@@ -42,7 +42,7 @@ pub fn is_uobject_inherits(info: &Info, uobject_ptr: Ptr, static_class: Ptr) -> 
 pub fn get_uclass_super(info: &Info, uclass_ptr: Ptr) -> Result<Option<Ptr>> {
     let mut parent = Ptr(0);
     info.process.read_buf(
-        uclass_ptr + OFFSETS.ustruct.super_struct,
+        uclass_ptr + info.offsets.ustruct.super_struct,
         bytes_of_mut(&mut parent),
     )?;
 
@@ -52,7 +52,7 @@ pub fn get_uclass_super(info: &Info, uclass_ptr: Ptr) -> Result<Option<Ptr>> {
 pub fn get_uobject_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
     let mut index = 0u32;
     info.process.read_buf(
-        uobject_ptr + OFFSETS.uobject.index,
+        uobject_ptr + info.offsets.uobject.index,
         bytes_of_mut(&mut index),
     )?;
 
@@ -62,7 +62,7 @@ pub fn get_uobject_index(info: &Info, uobject_ptr: Ptr) -> Result<u32> {
 pub fn get_uobject_class(info: &Info, uobject_ptr: Ptr) -> Result<Ptr> {
     let mut class = Ptr(0);
     info.process.read_buf(
-        uobject_ptr + OFFSETS.uobject.class,
+        uobject_ptr + info.offsets.uobject.class,
         bytes_of_mut(&mut class),
     )?;
 
@@ -79,7 +79,7 @@ pub fn get_uobject_package(info: &Info, uobject_ptr: Ptr) -> Option<Ptr> {
 pub fn get_uobject_outer(info: &Info, uobject_ptr: Ptr) -> Result<Option<Ptr>> {
     let mut outer = Ptr(0);
     info.process.read_buf(
-        uobject_ptr + OFFSETS.uobject.outer,
+        uobject_ptr + info.offsets.uobject.outer,
         bytes_of_mut(&mut outer),
     )?;
 
@@ -94,7 +94,7 @@ pub fn get_uenum_names<'n>(
     unsafe {
         iter_tarray::<(FNameEntryId, i64)>(
             info,
-            uenum_ptr + OFFSETS.uenum.names,
+            uenum_ptr + info.offsets.uenum.names,
             |&(name, value)| {
                 let name = info.names.get(name);
                 callback(name.text, value)
@@ -142,7 +142,7 @@ pub fn iter_ffield_linked_list(
     for ffield in successors(Some(ffield_ptr), |ffield| {
         let mut next = Ptr(0);
         info.process
-            .read_buf(*ffield + OFFSETS.ffield.next, bytes_of_mut(&mut next))
+            .read_buf(*ffield + info.offsets.ffield.next, bytes_of_mut(&mut next))
             .ok()?;
 
         next.to_option()
@@ -161,7 +161,7 @@ pub fn iter_ufield_linked_list(
     for ffield in successors(Some(ffield_ptr), |ffield| {
         let mut next = Ptr(0);
         info.process
-            .read_buf(*ffield + OFFSETS.ufield.next, bytes_of_mut(&mut next))
+            .read_buf(*ffield + info.offsets.ufield.next, bytes_of_mut(&mut next))
             .ok()?;
 
         next.to_option()
@@ -175,7 +175,7 @@ pub fn iter_ufield_linked_list(
 pub fn get_ustruct_children_props(info: &Info, ustruct: Ptr) -> Result<Option<Ptr>> {
     let mut ffield_ptr = Ptr(0);
     info.process.read_buf(
-        ustruct + OFFSETS.ustruct.children_props,
+        ustruct + info.offsets.ustruct.children_props,
         bytes_of_mut(&mut ffield_ptr),
     )?;
 
@@ -185,7 +185,7 @@ pub fn get_ustruct_children_props(info: &Info, ustruct: Ptr) -> Result<Option<Pt
 pub fn get_ustruct_children(info: &Info, ustruct: Ptr) -> Result<Option<Ptr>> {
     let mut ffield_ptr = Ptr(0);
     info.process.read_buf(
-        ustruct + OFFSETS.ustruct.children,
+        ustruct + info.offsets.ustruct.children,
         bytes_of_mut(&mut ffield_ptr),
     )?;
 
@@ -195,8 +195,10 @@ pub fn get_ustruct_children(info: &Info, ustruct: Ptr) -> Result<Option<Ptr>> {
 pub fn get_ffield_name(info: &Info, ffield_ptr: Ptr) -> Result<Cow<str>> {
     let mut name = FNameEntryId::default();
 
-    info.process
-        .read_buf(ffield_ptr + OFFSETS.ffield.name, bytes_of_mut(&mut name))?;
+    info.process.read_buf(
+        ffield_ptr + info.offsets.ffield.name,
+        bytes_of_mut(&mut name),
+    )?;
 
     Ok(info.names.get(name).text)
 }
@@ -204,8 +206,10 @@ pub fn get_ffield_name(info: &Info, ffield_ptr: Ptr) -> Result<Cow<str>> {
 pub fn get_ffield_class(info: &Info, ffield_ptr: Ptr) -> Result<Ptr> {
     let mut class = Ptr(0);
 
-    info.process
-        .read_buf(ffield_ptr + OFFSETS.ffield.class, bytes_of_mut(&mut class))?;
+    info.process.read_buf(
+        ffield_ptr + info.offsets.ffield.class,
+        bytes_of_mut(&mut class),
+    )?;
 
     Ok(class)
 }
@@ -257,7 +261,7 @@ pub fn get_uobject_code_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
 pub fn get_fproperty_array_dim(info: &Info, fproperty_ptr: Ptr) -> Result<u32> {
     let mut dim = 0u32;
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.array_dim,
+        fproperty_ptr + info.offsets.fproperty.array_dim,
         bytes_of_mut(&mut dim),
     )?;
 
@@ -267,7 +271,7 @@ pub fn get_fproperty_array_dim(info: &Info, fproperty_ptr: Ptr) -> Result<u32> {
 pub fn get_fproperty_offset(info: &Info, fproperty_ptr: Ptr) -> Result<usize> {
     let mut offset = 0u32;
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.offset,
+        fproperty_ptr + info.offsets.fproperty.offset,
         bytes_of_mut(&mut offset),
     )?;
 
@@ -277,7 +281,7 @@ pub fn get_fproperty_offset(info: &Info, fproperty_ptr: Ptr) -> Result<usize> {
 pub fn get_fproperty_element_size(info: &Info, fproperty_ptr: Ptr) -> Result<usize> {
     let mut elem_size = 0u32;
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.element_size,
+        fproperty_ptr + info.offsets.fproperty.element_size,
         bytes_of_mut(&mut elem_size),
     )?;
 
@@ -287,7 +291,7 @@ pub fn get_fproperty_element_size(info: &Info, fproperty_ptr: Ptr) -> Result<usi
 pub fn get_ustruct_parent(info: &Info, ustruct_ptr: Ptr) -> Result<Option<Ptr>> {
     let mut parent = Ptr(0);
     info.process.read_buf(
-        ustruct_ptr + OFFSETS.ustruct.super_struct,
+        ustruct_ptr + info.offsets.ustruct.super_struct,
         bytes_of_mut(&mut parent),
     )?;
 
@@ -304,7 +308,7 @@ pub fn get_ustruct_layout(info: &Info, ustruct_ptr: Ptr) -> Result<Layout> {
 pub fn get_ustruct_size(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     let mut size = 0u32;
     info.process.read_buf(
-        ustruct_ptr + OFFSETS.ustruct.props_size,
+        ustruct_ptr + info.offsets.ustruct.props_size,
         bytes_of_mut(&mut size),
     )?;
 
@@ -315,7 +319,7 @@ pub fn get_ustruct_alignment(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     let mut alignment = 0u32;
     info.process.read_buf(
         // TODO: Maybe add to offsets?
-        ustruct_ptr + OFFSETS.ustruct.props_size + 4,
+        ustruct_ptr + info.offsets.ustruct.props_size + 4,
         bytes_of_mut(&mut alignment),
     )?;
 
@@ -325,7 +329,7 @@ pub fn get_ustruct_alignment(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
 pub fn get_tarray_prop_inner_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut inner_prop = Ptr(0);
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.size,
+        fproperty_ptr + info.offsets.fproperty.size,
         bytes_of_mut(&mut inner_prop),
     )?;
 
@@ -335,7 +339,7 @@ pub fn get_tarray_prop_inner_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr
 pub fn get_fobject_prop_pointee_class(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut class = Ptr(0);
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.size,
+        fproperty_ptr + info.offsets.fproperty.size,
         bytes_of_mut(&mut class),
     )?;
 
@@ -346,7 +350,7 @@ pub fn get_fclass_prop_pointee_prop(info: &Info, fproperty_ptr: Ptr) -> Result<P
     let mut class = Ptr(0);
     info.process.read_buf(
         // TODO: Maybe add to offsets?
-        fproperty_ptr + OFFSETS.fproperty.size + size_of::<usize>(),
+        fproperty_ptr + info.offsets.fproperty.size + size_of::<usize>(),
         bytes_of_mut(&mut class),
     )?;
 
@@ -356,7 +360,7 @@ pub fn get_fclass_prop_pointee_prop(info: &Info, fproperty_ptr: Ptr) -> Result<P
 pub fn get_fenum_prop_inner_enum(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut uenum = Ptr(0);
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.size + size_of::<usize>(),
+        fproperty_ptr + info.offsets.fproperty.size + size_of::<usize>(),
         bytes_of_mut(&mut uenum),
     )?;
 
@@ -366,7 +370,7 @@ pub fn get_fenum_prop_inner_enum(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr>
 pub fn get_tset_prop_inner_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> {
     let mut prop = Ptr(0);
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.size,
+        fproperty_ptr + info.offsets.fproperty.size,
         bytes_of_mut(&mut prop),
     )?;
 
@@ -376,11 +380,11 @@ pub fn get_tset_prop_inner_prop(info: &Info, fproperty_ptr: Ptr) -> Result<Ptr> 
 pub fn get_tmap_prop_key_value_props(info: &Info, fproperty_ptr: Ptr) -> Result<(Ptr, Ptr)> {
     let (mut key, mut value) = (Ptr(0), Ptr(0));
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.size,
+        fproperty_ptr + info.offsets.fproperty.size,
         bytes_of_mut(&mut key),
     )?;
     info.process.read_buf(
-        fproperty_ptr + OFFSETS.fproperty.size + size_of::<usize>(),
+        fproperty_ptr + info.offsets.fproperty.size + size_of::<usize>(),
         bytes_of_mut(&mut value),
     )?;
 

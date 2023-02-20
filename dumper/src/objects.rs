@@ -2,7 +2,7 @@ use crate::{
     generate_gobjects_static_classes,
     ptr::Ptr,
     utils::{get_uobject_class, get_uobject_index, get_uobject_name, get_uobject_outer},
-    Info, OFFSETS,
+    Info,
 };
 use bytemuck::bytes_of_mut;
 use eyre::{eyre, Result};
@@ -135,7 +135,7 @@ fn dump_chunk(info: &Info, chunk_ptr: Ptr, objs: &mut Vec<Ptr>) -> Result<()> {
         objs.push(uobject_ptr);
         dump_object(info, uobject_ptr)?;
 
-        item_ptr += OFFSETS.fuobjectitem.size;
+        item_ptr += info.offsets.fuobjectitem.size;
     }
 
     Ok(())
