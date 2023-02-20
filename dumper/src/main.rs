@@ -19,8 +19,6 @@ mod process;
 mod ptr;
 mod utils;
 
-const OFFSETS: &Offsets = &offsets::DEFAULT;
-
 pub struct GlobalProxy<T>(Option<T>);
 impl<T> Deref for GlobalProxy<T> {
     type Target = T;
@@ -34,6 +32,7 @@ pub struct Info {
     process: Box<dyn Process>,
     names: GlobalProxy<GNames>,
     objects: GlobalProxy<GObjects>,
+    offsets: &'static Offsets,
 
     names_dump: RefCell<Box<dyn Write>>,
     objects_dump: RefCell<Box<dyn Write>>,
@@ -74,6 +73,7 @@ fn main() -> Result<()> {
         process: Box::new(ExternalProcess::new(args.pid)?),
         names: GlobalProxy(None),
         objects: GlobalProxy(None),
+        offsets: &offsets::DEFAULT,
 
         names_dump: (Box::new(names_dump) as Box<dyn Write>).into(),
         objects_dump: (Box::new(objects_dump) as Box<dyn Write>).into(),
