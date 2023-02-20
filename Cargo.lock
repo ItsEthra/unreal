@@ -171,6 +171,7 @@ dependencies = [
  "libc",
  "log",
  "memflex",
+ "offsets",
  "once_cell",
  "paste",
  "sourcer",
@@ -337,6 +338,10 @@ checksum = "ea86265d3d3dcb6a27fc51bd29a4bf387fae9d2986b823079d4986af253eb439"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "offsets"
+version = "0.1.0"
 
 [[package]]
 name = "once_cell"

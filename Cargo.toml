@@ -1,5 +1,5 @@
 [workspace]
-members = ["ucore", "dumper", "sourcer"]
+members = ["ucore", "dumper", "sourcer", "offsets"]
 
 [workspace.package]
 version = "0.1.0"

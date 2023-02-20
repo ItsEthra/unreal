@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 sourcer = { path = "../sourcer" }
+offsets = { path = "../offsets" }
 argh = "0.1.10"
 bytemuck = { version = "1.13.0", features = ["derive"] }
 color-eyre = "0.6.2"
