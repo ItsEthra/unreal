@@ -14,7 +14,6 @@ use std::{cell::RefCell, fs, io::Write, ops::Deref, rc::Rc, time::Instant};
 mod macros;
 mod names;
 mod objects;
-mod offsets;
 mod package;
 mod process;
 mod ptr;
