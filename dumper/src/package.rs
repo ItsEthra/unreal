@@ -3,17 +3,19 @@
 use crate::{
     ptr::Ptr,
     utils::{
-        get_ffield_name, get_fproperty_element_size, get_fproperty_offset, get_fproperty_type,
-        get_uenum_names, get_uobject_code_name, get_uobject_full_name, get_uobject_name,
-        get_uobject_package, get_ustruct_alignment, get_ustruct_children_props, get_ustruct_layout,
-        get_ustruct_parent, get_ustruct_size, is_uobject_inherits, iter_ffield_linked_list,
-        sanitize_ident,
+        get_fbool_prop_bit_data, get_ffield_name, get_fproperty_element_size, get_fproperty_offset,
+        get_fproperty_type, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
+        get_uobject_name, get_uobject_package, get_ustruct_alignment, get_ustruct_children_props,
+        get_ustruct_layout, get_ustruct_parent, get_ustruct_size, is_uobject_inherits,
+        iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
 use eyre::{eyre, Result};
 use log::{info, trace};
-use sourcer::{ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, StructGenerator};
+use sourcer::{
+    ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType, StructGenerator,
+};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -144,6 +146,11 @@ impl Package {
                 trace!(
                     "\t{field_name}: {prop_ty:?}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
                 );
+
+                if matches!(prop_ty, PropertyType::Bool) {
+                    trace!("\t\t{:?}", get_fbool_prop_bit_data(info, ffield_ptr)?);
+                }
+
                 ustruct_cg.append_field(&field_name, prop_ty, elem_size, offset)?;
             } else {
                 trace!(
