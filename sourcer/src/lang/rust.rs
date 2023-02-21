@@ -238,8 +238,8 @@ pub struct RustSdkGenerator {
 }
 
 impl SdkGenerator for RustSdkGenerator {
-    fn begin_package<'sdk: 'pkg, 'pkg>(
-        &'sdk mut self,
+    fn begin_package<'pkg>(
+        &mut self,
         name: &str,
         registry: &Rc<ClassRegistry>,
     ) -> Result<Box<dyn PackageGenerator + 'pkg>> {
