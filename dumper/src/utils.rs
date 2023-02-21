@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 
 use crate::{names::FNameEntryId, ptr::Ptr, Info};
-use bytemuck::bytes_of_mut;
+use bytemuck::{bytes_of_mut, Pod, Zeroable};
 use eyre::Result;
 use sourcer::{Layout, PropertyType};
 use std::{
     borrow::Cow,
+    fmt,
     iter::successors,
-    mem::{size_of, MaybeUninit},
+    mem::{size_of, zeroed, MaybeUninit},
 };
 
 pub fn get_uobject_name(info: &Info, uobject_ptr: Ptr) -> Result<String> {
@@ -389,6 +390,37 @@ pub fn get_tmap_prop_key_value_props(info: &Info, fproperty_ptr: Ptr) -> Result<
     )?;
 
     Ok((key, value))
+}
+
+#[derive(Clone, Copy, Zeroable, Pod)]
+#[repr(C)]
+pub struct BoolPropertyBitData {
+    pub field_size: u8,
+    pub byte_offset: u8,
+    pub byte_mask: u8,
+    pub field_mask: u8,
+}
+
+impl fmt::Debug for BoolPropertyBitData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            field_size: fs,
+            byte_offset: bo,
+            byte_mask: bm,
+            field_mask: fm,
+        } = self;
+        write!(f, "FS: {fs:X} BO: {bo} BM: {bm:b} FM: {fm:b}",)
+    }
+}
+
+pub fn get_fbool_prop_bit_data(info: &Info, fproperty_ptr: Ptr) -> Result<BoolPropertyBitData> {
+    let mut data = unsafe { zeroed() };
+    info.process.read_buf(
+        fproperty_ptr + info.offsets.fproperty.size,
+        bytes_of_mut(&mut data),
+    )?;
+
+    Ok(data)
 }
 
 pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<PropertyType>> {

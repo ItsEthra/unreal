@@ -1,7 +1,6 @@
 #[macro_export]
 macro_rules! generate_gobjects_static_classes {
     ($($fname:ident, $fullname:literal),* $(,)?) => {
-        #[allow(dead_code)]
         impl GObjects {
             $(
                 pub fn $fname(&self, info: &Info) -> Result<Ptr> {
