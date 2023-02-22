@@ -429,7 +429,10 @@ pub fn get_fbool_prop_bit_data(info: &Info, fproperty_ptr: Ptr) -> Result<BoolPr
     Ok(data)
 }
 
-pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<PropertyType>> {
+pub fn get_fproperty_type(
+    info: &Info,
+    fproperty_ptr: Ptr,
+) -> Result<Result<PropertyType, Cow<str>>> {
     let class = get_ffield_class(info, fproperty_ptr)?;
     let classname = get_ffield_class_name(info, class)?;
     let array_dim = get_fproperty_array_dim(info, fproperty_ptr)?;
@@ -455,10 +458,9 @@ pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<Prop
         }),
         "ArrayProperty" => PropertyType::Vector({
             let inner = get_tarray_prop_inner_prop(info, fproperty_ptr)?;
-            if let Some(prop) = get_fproperty_type(info, inner)? {
-                prop.into()
-            } else {
-                return Ok(None);
+            match get_fproperty_type(info, inner)? {
+                Ok(prop) => prop.into(),
+                err => return Ok(err),
             }
         }),
         "ClassProperty" => PropertyType::ClassPtr({
@@ -475,24 +477,24 @@ pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<Prop
         }),
         "SetProperty" => PropertyType::Set({
             let inner = get_tset_prop_inner_prop(info, fproperty_ptr)?;
-            if let Some(prop) = get_fproperty_type(info, inner)? {
-                prop.into()
-            } else {
-                return Ok(None);
+            match get_fproperty_type(info, inner)? {
+                Ok(prop) => prop.into(),
+                err => return Ok(err),
             }
         }),
         "MapProperty" => {
             let (key, value) = get_tmap_prop_key_value_props(info, fproperty_ptr)?;
-            if let Some((key, value)) =
-                get_fproperty_type(info, key)?.zip(get_fproperty_type(info, value)?)
-            {
-                PropertyType::Map {
-                    key: key.into(),
-                    value: value.into(),
-                }
-            } else {
-                return Ok(None);
-            }
+
+            let key = match get_fproperty_type(info, key)? {
+                Ok(key) => key.into(),
+                err => return Ok(err),
+            };
+            let value = match get_fproperty_type(info, value)? {
+                Ok(value) => value.into(),
+                err => return Ok(err),
+            };
+
+            PropertyType::Map { key, value }
         }
         // "ClassPtrProperty" => todo!(),
         // "DelegateProperty" => todo!(),
@@ -502,15 +504,15 @@ pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<Prop
         // "SoftClassProperty" => todo!(),
         // "SoftObjectProperty" => todo!(),
         // "WeakObjectProperty" => todo!(),
-        _ => return Ok(None),
+        _ => return Ok(Err(classname)),
     };
 
     match array_dim {
-        2.. => Ok(Some(PropertyType::Array {
+        2.. => Ok(Ok(PropertyType::Array {
             ty: ty.into(),
             size: array_dim,
         })),
-        1 => Ok(Some(ty)),
+        1 => Ok(Ok(ty)),
         _ => unreachable!(),
     }
 }

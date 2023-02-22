@@ -138,22 +138,21 @@ impl Package {
             let elem_size = get_fproperty_element_size(info, ffield_ptr)?;
             let offset = get_fproperty_offset(info, ffield_ptr)?;
 
-            if let Some(prop_ty) = get_fproperty_type(info, ffield_ptr)? {
-                trace!(
-                    "\t{field_name}: {prop_ty:?}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
-                );
-                if matches!(prop_ty, PropertyType::Bool) {
+            match get_fproperty_type(info, ffield_ptr)? {
+                Ok(prop_ty) => {
                     trace!(
-                        "\t\t{:?}",
-                        get_fbool_prop_bit_data(info, ffield_ptr)?.bit_mask()
+                        "\t{field_name}: {prop_ty:?}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
                     );
-                }
+                    if matches!(prop_ty, PropertyType::Bool) {
+                        trace!(
+                            "\t\t{:?}",
+                            get_fbool_prop_bit_data(info, ffield_ptr)?.bit_mask()
+                        );
+                    }
 
-                ustruct_cg.append_field(&field_name, prop_ty, elem_size, offset)?;
-            } else {
-                trace!(
-                    "\t{field_name}: _UNKNOWN_. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
-                );
+                    ustruct_cg.append_field(&field_name, prop_ty, elem_size, offset)?;
+                }
+                Err(classname) => trace!("\t(UNRESOLVED) {field_name}: {classname}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"),
             }
 
             Ok(())
