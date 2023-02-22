@@ -2,12 +2,14 @@ use crate::{
     ClassData, ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
     SdkGenerator, StructGenerator,
 };
+use eyre::Result;
 use log::warn;
 use std::{
     borrow::Cow,
     collections::HashSet,
+    fmt::Write as WriteFmt,
     fs::{self, File, OpenOptions},
-    io::{Result, Write},
+    io::Write as WriteIo,
     path::{Path, PathBuf},
     rc::Rc,
 };
@@ -98,7 +100,7 @@ impl<'a> StructGenerator for StructGen<'a> {
         if let Some(parent) = parent {
             let ClassData {
                 code_name, layout, ..
-            } = self.registry.lookup(&parent).unwrap();
+            } = self.registry.lookup(&parent).expect("Missing import");
             self.offset = layout
                 .as_ref()
                 .expect("Deriving from enum is not allowed")
@@ -223,8 +225,9 @@ impl PackageGenerator for PackageGen {
 
         writeln!(self.this.librs)?;
 
-        self.this.librs.write_all(&self.module.enums)?;
-        self.this.librs.write_all(&self.module.classes)?;
+        writeln!(self.this.librs, "{}", self.module.bitfields)?;
+        writeln!(self.this.librs, "{}", self.module.enums)?;
+        writeln!(self.this.librs, "{}", self.module.classes)?;
 
         Ok(())
     }
@@ -340,6 +343,7 @@ fn open_file(path: impl AsRef<Path>) -> Result<File> {
         .truncate(true)
         .write(true)
         .open(path)
+        .map_err(Into::into)
 }
 
 struct Crate {
@@ -351,8 +355,9 @@ struct Crate {
 struct Module {
     package_name: String,
     imports: HashSet<IdName>,
-    enums: Vec<u8>,
-    classes: Vec<u8>,
+    bitfields: String,
+    enums: String,
+    classes: String,
 }
 
 struct TypeStringifier<'a> {

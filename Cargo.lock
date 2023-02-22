@@ -451,6 +451,7 @@ name = "sourcer"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "eyre",
  "log",
  "offsets",
 ]
