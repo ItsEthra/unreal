@@ -84,3 +84,38 @@ impl PropertyType {
         )
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BitMask {
+    Full,
+    Partial { len: u32, offset: u32 },
+}
+
+impl BitMask {
+    pub fn determinate(mask: u8) -> Self {
+        if mask == u8::MAX {
+            Self::Full
+        } else {
+            let offset = mask.trailing_zeros();
+            Self::Partial {
+                len: (mask >> offset).trailing_ones(),
+                offset,
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BitField {
+    pub name: String,
+    pub mask: BitMask,
+}
+
+#[test]
+fn test_bit_mask() {
+    let mask = BitMask::determinate(0b11000);
+    assert_eq!(mask, BitMask::Partial { len: 2, offset: 3 });
+
+    let mask = BitMask::determinate(0b11111111);
+    assert_eq!(mask, BitMask::Full);
+}

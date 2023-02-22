@@ -238,6 +238,23 @@ pub struct RustSdkGenerator {
 }
 
 impl SdkGenerator for RustSdkGenerator {
+    fn new(path: impl AsRef<Path>) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let path = path.as_ref().join("usdk");
+        fs::create_dir_all(&path)?;
+
+        let toml = open_file(path.join("Cargo.toml"))?;
+        let librs = open_file(path.join("lib.rs"))?;
+
+        Ok(Self {
+            crates: path.join("crates"),
+            workspace: Crate { toml, librs },
+            packages: vec![],
+        })
+    }
+
     fn begin_package<'pkg>(
         &mut self,
         name: &str,
@@ -295,23 +312,6 @@ impl SdkGenerator for RustSdkGenerator {
                 ..Default::default()
             },
         }))
-    }
-
-    fn new(path: impl AsRef<Path>) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let path = path.as_ref().join("usdk");
-        fs::create_dir_all(&path)?;
-
-        let toml = open_file(path.join("Cargo.toml"))?;
-        let librs = open_file(path.join("lib.rs"))?;
-
-        Ok(Self {
-            crates: path.join("crates"),
-            workspace: Crate { toml, librs },
-            packages: vec![],
-        })
     }
 
     fn end(&mut self) -> Result<()> {

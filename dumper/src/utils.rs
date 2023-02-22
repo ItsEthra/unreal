@@ -3,7 +3,7 @@
 use crate::{names::FNameEntryId, ptr::Ptr, Info};
 use bytemuck::{bytes_of_mut, Pod, Zeroable};
 use eyre::Result;
-use sourcer::{Layout, PropertyType};
+use sourcer::{BitMask, Layout, PropertyType};
 use std::{
     borrow::Cow,
     fmt,
@@ -399,6 +399,12 @@ pub struct BoolPropertyBitData {
     pub byte_offset: u8,
     pub byte_mask: u8,
     pub field_mask: u8,
+}
+
+impl BoolPropertyBitData {
+    pub fn bit_mask(&self) -> BitMask {
+        BitMask::determinate(self.field_mask)
+    }
 }
 
 impl fmt::Debug for BoolPropertyBitData {

@@ -130,25 +130,23 @@ impl Package {
             parent,
         )?;
 
-        let mut field_names = HashMap::new();
+        let mut name_dedup = NameDedup::default();
         let callback = |ffield_ptr: Ptr| {
             let mut field_name = get_ffield_name(info, ffield_ptr)?;
+            field_name = name_dedup.dedup(field_name);
 
             let elem_size = get_fproperty_element_size(info, ffield_ptr)?;
             let offset = get_fproperty_offset(info, ffield_ptr)?;
-
-            if let Some(&count) = field_names.get(&field_name) {
-                field_name = format!("{field_name}_{count}").into();
-            }
-            *field_names.entry(field_name.clone()).or_insert(0) += 1;
 
             if let Some(prop_ty) = get_fproperty_type(info, ffield_ptr)? {
                 trace!(
                     "\t{field_name}: {prop_ty:?}. Elem_size: 0x{elem_size:X}. Offset: 0x{offset:X}"
                 );
-
                 if matches!(prop_ty, PropertyType::Bool) {
-                    trace!("\t\t{:?}", get_fbool_prop_bit_data(info, ffield_ptr)?);
+                    trace!(
+                        "\t\t{:?}",
+                        get_fbool_prop_bit_data(info, ffield_ptr)?.bit_mask()
+                    );
                 }
 
                 ustruct_cg.append_field(&field_name, prop_ty, elem_size, offset)?;
@@ -242,4 +240,19 @@ pub fn merge(
     merger.objects.extend(target.objects);
 
     Ok(())
+}
+
+#[derive(Default)]
+struct NameDedup<'a>(HashMap<Cow<'a, str>, u32>);
+
+impl<'a> NameDedup<'a> {
+    fn dedup(&mut self, name: Cow<'a, str>) -> Cow<'a, str> {
+        if let Some(count) = self.0.get_mut(&*name) {
+            *count += 1;
+            format!("{name}_{count}").into()
+        } else {
+            self.0.insert(name.clone(), 0);
+            name
+        }
+    }
 }
