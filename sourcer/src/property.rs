@@ -62,8 +62,7 @@ pub enum PropertyType {
     Name, // FName
     String, // FString
     Text, // FText
-    InlineClass(IdName), // Struct field can be a StructProperty or be inside other PropertyTypes
-    InlineEnum(IdName), // Enum field
+    Inline(IdName), // Enum field or Struct field can be a StructProperty or be inside other PropertyTypes
 }
 
 impl PropertyType {

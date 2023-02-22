@@ -20,7 +20,7 @@ pub struct OfUObject {
 
 pub struct OfFNameEntry {
     pub header: usize,
-    pub name: usize,
+    pub data: usize,
 
     pub wide_bit: usize,
     pub len_bit: usize,

@@ -1,4 +1,5 @@
 use eyre::Result;
+use offsets::Offsets;
 use std::{path::Path, rc::Rc};
 
 pub mod lang;
@@ -50,7 +51,7 @@ pub trait PackageGenerator {
 }
 
 pub trait SdkGenerator {
-    fn new(path: impl AsRef<Path>) -> Result<Self>
+    fn new(path: impl AsRef<Path>, offsets: &'static Offsets) -> Result<Self>
     where
         Self: Sized;
 

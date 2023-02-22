@@ -451,7 +451,7 @@ pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<Prop
         "TextProperty" => PropertyType::Text,
         "ObjectProperty" => PropertyType::ClassPtr({
             let inner = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
-            PropertyType::InlineClass(get_uobject_full_name(info, inner)?.into()).into()
+            PropertyType::Inline(get_uobject_full_name(info, inner)?.into()).into()
         }),
         "ArrayProperty" => PropertyType::Vector({
             let inner = get_tarray_prop_inner_prop(info, fproperty_ptr)?;
@@ -463,13 +463,13 @@ pub fn get_fproperty_type(info: &Info, fproperty_ptr: Ptr) -> Result<Option<Prop
         }),
         "ClassProperty" => PropertyType::ClassPtr({
             let inner = get_fclass_prop_pointee_prop(info, fproperty_ptr)?;
-            PropertyType::InlineClass(get_uobject_full_name(info, inner)?.into()).into()
+            PropertyType::Inline(get_uobject_full_name(info, inner)?.into()).into()
         }),
-        "StructProperty" => PropertyType::InlineClass({
+        "StructProperty" => PropertyType::Inline({
             let inner = get_fobject_prop_pointee_class(info, fproperty_ptr)?;
             get_uobject_full_name(info, inner)?.into()
         }),
-        "EnumProperty" => PropertyType::InlineEnum({
+        "EnumProperty" => PropertyType::Inline({
             let inner = get_fenum_prop_inner_enum(info, fproperty_ptr)?;
             get_uobject_full_name(info, inner)?.into()
         }),
