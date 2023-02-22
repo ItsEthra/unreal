@@ -104,7 +104,7 @@ fn main() -> Result<()> {
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
-    let mut sdkgen = RustSdkGenerator::new(".")?;
+    let mut sdkgen = RustSdkGenerator::new(".", info.offsets)?;
 
     let (packages, registry) = {
         let mut rg = ClassRegistry::default();

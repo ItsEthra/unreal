@@ -4,6 +4,7 @@ use crate::{
 };
 use eyre::Result;
 use log::warn;
+use offsets::Offsets;
 use std::{
     borrow::Cow,
     collections::HashSet,
@@ -238,10 +239,11 @@ pub struct RustSdkGenerator {
     workspace: Crate,
 
     packages: Vec<String>,
+    offsets: &'static Offsets,
 }
 
 impl SdkGenerator for RustSdkGenerator {
-    fn new(path: impl AsRef<Path>) -> Result<Self>
+    fn new(path: impl AsRef<Path>, offsets: &'static Offsets) -> Result<Self>
     where
         Self: Sized,
     {
@@ -255,6 +257,7 @@ impl SdkGenerator for RustSdkGenerator {
             crates: path.join("crates"),
             workspace: Crate { toml, librs },
             packages: vec![],
+            offsets,
         })
     }
 
@@ -303,6 +306,17 @@ impl SdkGenerator for RustSdkGenerator {
             for warn in WARNINGS {
                 writeln!(package.librs, "#![allow({warn})]")?;
             }
+            writeln!(
+                package.librs,
+                "\ntype FName = ucore::FName<{stride}, {size}, {index}, {header}, {data}, {wide_bit}, {len_bit}>;",
+                stride = self.offsets.stride,
+                index = self.offsets.fname.index,
+                size = self.offsets.fname.size,
+                header = self.offsets.fnameentry.header,
+                data = self.offsets.fnameentry.data,
+                wide_bit = self.offsets.fnameentry.wide_bit,
+                len_bit = self.offsets.fnameentry.len_bit,
+            )?;
 
             writeln!(package.librs)?;
         }
@@ -312,7 +326,10 @@ impl SdkGenerator for RustSdkGenerator {
             registry: registry.clone(),
             module: Module {
                 package_name: name.to_string(),
-                ..Default::default()
+                imports: HashSet::new(),
+                bitfields: String::new(),
+                enums: String::new(),
+                classes: String::new(),
             },
         }))
     }
@@ -351,7 +368,6 @@ struct Crate {
     librs: File,
 }
 
-#[derive(Default)]
 struct Module {
     package_name: String,
     imports: HashSet<IdName>,
@@ -414,8 +430,7 @@ impl<'a> TypeStringifier<'a> {
             PropertyType::Name => "ucore::FName".into(),
             PropertyType::String => "ucore::FString".into(),
             PropertyType::Text => "ucore::FText".into(),
-            PropertyType::InlineClass(id) => fetch_dep(id).into(),
-            PropertyType::InlineEnum(id) => fetch_dep(id).into(),
+            PropertyType::Inline(id) => fetch_dep(id).into(),
         }
     }
 }

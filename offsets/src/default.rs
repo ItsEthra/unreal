@@ -19,7 +19,7 @@ pub const DEFAULT: Offsets = Offsets {
     },
     fnameentry: OfFNameEntry {
         header: 0x0,
-        name: 0x2,
+        data: 0x2,
         wide_bit: 0x0,
         len_bit: 0x6,
     },
