@@ -11,3 +11,4 @@ repository.workspace = true
 offsets = { path = "../offsets" }
 derive_more = "0.99.17"
 log = "0.4.17"
+eyre = "0.6.8"

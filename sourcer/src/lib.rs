@@ -1,4 +1,5 @@
-use std::{io::Result, path::Path, rc::Rc};
+use eyre::Result;
+use std::{path::Path, rc::Rc};
 
 pub mod lang;
 
