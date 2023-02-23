@@ -1,6 +1,6 @@
 use crate::{
     EnumGenerator, IdName, Layout, PackageGenerator, PackageRegistry, PropertyType,
-    RegistrationData, SdkGenerator, StructGenerator, RegistrationExtra,
+    RegistrationData, RegistrationExtra, SdkGenerator, StructGenerator,
 };
 use eyre::{eyre, Result};
 use log::warn;
@@ -15,30 +15,35 @@ use std::{
     rc::Rc,
 };
 
-fn pick_enum_size(min: i64, max: i64) -> &'static str {
-    if i8::MAX as i64 > max && (i8::MIN as i64) < min {
-        "i8"
-    } else if i16::MAX as i64 > max && (i16::MIN as i64) < min {
-        "i16"
-    } else if i32::MAX as i64 > max && (i32::MIN as i64) < min {
-        "i32"
+fn pick_enum_size(min_max: Option<(i64, i64)>) -> (&'static str, usize) {
+    if let Some((min, max)) = min_max {
+        if i8::MAX as i64 > max && (i8::MIN as i64) < min {
+            ("i8", 1)
+        } else if i16::MAX as i64 > max && (i16::MIN as i64) < min {
+            ("i16", 2)
+        } else if i32::MAX as i64 > max && (i32::MIN as i64) < min {
+            ("i32", 4)
+        } else {
+            ("i64", 8)
+        }
     } else {
-        "i64"
+        ("i32", 4)
     }
 }
 
 struct EnumGen<'a> {
     module: &'a mut Module,
-    registry: &'a PackageRegistry,  
+    registry: &'a PackageRegistry,
 }
 
 impl<'a> EnumGenerator for EnumGen<'a> {
     fn begin(&mut self, name: &str, id_name: IdName) -> Result<()> {
-        let ty = if let Some((min, max)) = self.registry.lookup(&id_name).and_then(|d| d.extra.unwrap_enum()) {
-            pick_enum_size(min, max)
-        } else {
-            "i32"
-        };
+        let ty = pick_enum_size(
+            self.registry
+                .lookup(&id_name)
+                .and_then(|d| d.extra.unwrap_enum()),
+        )
+        .0;
 
         writeln!(self.module.enums, "// Full name: {id_name}")?;
         writeln!(self.module.enums, "memflex::bitflags! {{")?;
@@ -88,12 +93,11 @@ impl<'a> StructGenerator for StructGen<'a> {
             "// Size: 0x{:X}. Alignment: {:X}.{}",
             layout.align(),
             layout.alignment,
-            if let Some((parent_id, parent_data)) =
-                parent
-                    .as_ref()
-                    .map(|p| (p, self.registry.lookup(p).expect("Missing import")))
+            if let Some((parent_id, parent_data)) = parent
+                .as_ref()
+                .map(|p| (p, self.registry.lookup(p).expect("Missing import")))
             {
-                let RegistrationExtra::ClassLayout(parent_layout) = parent_data.extra else { 
+                let RegistrationExtra::ClassLayout(parent_layout) = parent_data.extra else {
                         return Err(eyre!("Deriving from enum is not allowed"))
                 };
                 self.offset = parent_layout.align();
@@ -129,9 +133,20 @@ impl<'a> StructGenerator for StructGen<'a> {
         elem_size: usize,
         offset: usize,
     ) -> Result<()> {
+        let maybe_enum_size = match field_ty {
+            PropertyType::Inline(ref id) => match self.registry.lookup(id).unwrap().extra {
+                RegistrationExtra::EnumMinMax(min_max) => Some(pick_enum_size(min_max).1),
+                _ => None,
+            },
+            _ => None,
+        };
+
         let size = match field_ty {
             PropertyType::Array { ref size, .. } => *size as usize * elem_size,
-            _ => elem_size,
+            _ => match maybe_enum_size {
+                Some(enum_size) => enum_size.min(elem_size),
+                _ => elem_size,
+            },
         };
 
         let mut ts = TypeStringifier::new(self.registry);
@@ -197,7 +212,7 @@ impl PackageGenerator for PackageGen {
     fn add_enum<'new>(&'new mut self) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
         Ok(Box::new(EnumGen {
             module: &mut self.module,
-            registry: &self.registry
+            registry: &self.registry,
         }))
     }
 
