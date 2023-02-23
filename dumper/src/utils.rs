@@ -306,6 +306,32 @@ pub fn get_ustruct_layout(info: &Info, ustruct_ptr: Ptr) -> Result<Layout> {
     })
 }
 
+pub fn get_uenum_min_max(info: &Info, uenum_ptr: Ptr) -> Result<Option<(i64, i64)>> {
+    let mut min_max = None;
+
+    unsafe {
+        iter_tarray::<(FNameEntryId, i64)>(
+            info,
+            uenum_ptr + info.offsets.uenum.names,
+            |&(_, value)| {
+                if let Some((min, max)) = min_max.as_mut() {
+                    if value > *max {
+                        *max = value;
+                    } else if value < *min {
+                        *min = value;
+                    }
+                } else {
+                    min_max = Some((value, value));
+                }
+
+                Ok(())
+            },
+        )?;
+    }
+
+    Ok(min_max)
+}
+
 pub fn get_ustruct_size(info: &Info, ustruct_ptr: Ptr) -> Result<usize> {
     let mut size = 0u32;
     info.process.read_buf(

@@ -32,7 +32,7 @@ pub trait StructGenerator {
 }
 
 pub trait EnumGenerator {
-    fn begin(&mut self, name: &str, id_name: IdName, min_max: Option<(i64, i64)>) -> Result<()>;
+    fn begin(&mut self, name: &str, id_name: IdName) -> Result<()>;
 
     fn append_variant(&mut self, variant: &str, value: i64) -> Result<()>;
 
@@ -58,7 +58,7 @@ pub trait SdkGenerator {
     fn begin_package<'pkg>(
         &mut self,
         name: &str,
-        registry: &Rc<ClassRegistry>,
+        registry: &Rc<PackageRegistry>,
     ) -> Result<Box<dyn PackageGenerator + 'pkg>>;
 
     fn end(&mut self) -> Result<()> {

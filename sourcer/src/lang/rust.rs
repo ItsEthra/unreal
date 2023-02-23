@@ -1,8 +1,8 @@
 use crate::{
-    ClassData, ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType,
-    SdkGenerator, StructGenerator,
+    EnumGenerator, IdName, Layout, PackageGenerator, PackageRegistry, PropertyType,
+    RegistrationData, SdkGenerator, StructGenerator, RegistrationExtra,
 };
-use eyre::Result;
+use eyre::{eyre, Result};
 use log::warn;
 use offsets::Offsets;
 use std::{
@@ -27,31 +27,35 @@ fn pick_enum_size(min: i64, max: i64) -> &'static str {
     }
 }
 
-struct EnumGen<'a>(&'a mut Module);
+struct EnumGen<'a> {
+    module: &'a mut Module,
+    registry: &'a PackageRegistry,  
+}
+
 impl<'a> EnumGenerator for EnumGen<'a> {
-    fn begin(&mut self, name: &str, id_name: IdName, min_max: Option<(i64, i64)>) -> Result<()> {
-        let ty = if let Some((min, max)) = min_max {
+    fn begin(&mut self, name: &str, id_name: IdName) -> Result<()> {
+        let ty = if let Some((min, max)) = self.registry.lookup(&id_name).and_then(|d| d.extra.unwrap_enum()) {
             pick_enum_size(min, max)
         } else {
             "i32"
         };
 
-        writeln!(self.0.enums, "// Full name: {id_name}")?;
-        writeln!(self.0.enums, "memflex::bitflags! {{")?;
-        writeln!(self.0.enums, "\t#[repr(transparent)]")?;
-        writeln!(self.0.enums, "\tpub struct {name} : {ty} {{")?;
+        writeln!(self.module.enums, "// Full name: {id_name}")?;
+        writeln!(self.module.enums, "memflex::bitflags! {{")?;
+        writeln!(self.module.enums, "\t#[repr(transparent)]")?;
+        writeln!(self.module.enums, "\tpub struct {name} : {ty} {{")?;
 
         Ok(())
     }
 
     fn append_variant(&mut self, variant: &str, value: i64) -> Result<()> {
-        writeln!(self.0.enums, "\t\tconst {variant} = {value};")?;
+        writeln!(self.module.enums, "\t\tconst {variant} = {value};")?;
 
         Ok(())
     }
 
     fn end(&mut self) -> Result<()> {
-        writeln!(self.0.enums, "\t}}\n}}\n")?;
+        writeln!(self.module.enums, "\t}}\n}}\n")?;
 
         Ok(())
     }
@@ -59,7 +63,7 @@ impl<'a> EnumGenerator for EnumGen<'a> {
 
 struct StructGen<'a> {
     module: &'a mut Module,
-    registry: &'a ClassRegistry,
+    registry: &'a PackageRegistry,
     offset: usize,
     layout: Layout,
     name: String,
@@ -76,21 +80,26 @@ impl<'a> StructGenerator for StructGen<'a> {
         self.layout = layout;
         self.name = name.to_string();
 
+        let mut parent_code_and_full_name = None;
+
         writeln!(self.module.classes, "// {id_name}")?;
         writeln!(
             self.module.classes,
             "// Size: 0x{:X}. Alignment: {:X}.{}",
             layout.align(),
             layout.alignment,
-            if let Some(parent) = parent.as_ref().map(|p| self
-                .registry
-                .lookup(p)
-                .expect("Missing import")
-                .layout
-                .expect("Deriving from enum is not allowed")
-                .align())
+            if let Some((parent_id, parent_data)) =
+                parent
+                    .as_ref()
+                    .map(|p| (p, self.registry.lookup(p).expect("Missing import")))
             {
-                Cow::Owned(format!(" (Parent: 0x{parent:X})"))
+                let RegistrationExtra::ClassLayout(parent_layout) = parent_data.extra else { 
+                        return Err(eyre!("Deriving from enum is not allowed"))
+                };
+                self.offset = parent_layout.align();
+                parent_code_and_full_name = Some((&parent_data.code_name, parent_id));
+
+                Cow::Owned(format!(" (Parent: 0x{:X})", parent_layout.align()))
             } else {
                 Cow::Borrowed("")
             }
@@ -98,22 +107,14 @@ impl<'a> StructGenerator for StructGen<'a> {
         writeln!(self.module.classes, "memflex::makestruct! {{")?;
 
         // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
-        if let Some(parent) = parent {
-            let ClassData {
-                code_name, layout, ..
-            } = self.registry.lookup(&parent).expect("Missing import");
-            self.offset = layout
-                .as_ref()
-                .expect("Deriving from enum is not allowed")
-                .size;
-
-            if code_name == name {
-                warn!("{parent} is recursive. Skipping parenting");
+        if let Some((pcode, pfull)) = parent_code_and_full_name {
+            if pcode == name {
+                warn!("{pfull} is recursive. Skipping parenting");
                 writeln!(self.module.classes, "\tpub struct {name} {{",)?;
             } else {
-                writeln!(self.module.classes, "\tpub struct {name} : {code_name} {{",)?;
+                writeln!(self.module.classes, "\tpub struct {name} : {pcode} {{",)?;
             }
-            self.module.imports.insert(parent);
+            self.module.imports.insert(pfull.clone());
         } else {
             writeln!(self.module.classes, "\tpub struct {name} {{")?;
         }
@@ -189,12 +190,15 @@ impl<'a> StructGenerator for StructGen<'a> {
 struct PackageGen {
     this: Crate,
     module: Module,
-    registry: Rc<ClassRegistry>,
+    registry: Rc<PackageRegistry>,
 }
 
 impl PackageGenerator for PackageGen {
     fn add_enum<'new>(&'new mut self) -> Result<Box<dyn crate::EnumGenerator + 'new>> {
-        Ok(Box::new(EnumGen(&mut self.module)))
+        Ok(Box::new(EnumGen {
+            module: &mut self.module,
+            registry: &self.registry
+        }))
     }
 
     fn add_struct<'new>(&'new mut self) -> Result<Box<dyn crate::StructGenerator + 'new>> {
@@ -213,7 +217,7 @@ impl PackageGenerator for PackageGen {
             .imports
             .iter()
             .map(|id| self.registry.lookup(id).expect("Unresolved import"))
-            .filter_map(|ClassData { package, .. }| {
+            .filter_map(|RegistrationData { package, .. }| {
                 if package != &self.module.package_name {
                     Some(package)
                 } else {
@@ -267,7 +271,7 @@ impl SdkGenerator for RustSdkGenerator {
     fn begin_package<'pkg>(
         &mut self,
         name: &str,
-        registry: &Rc<ClassRegistry>,
+        registry: &Rc<PackageRegistry>,
     ) -> Result<Box<dyn PackageGenerator + 'pkg>> {
         self.packages.push(name.to_string());
 
@@ -381,12 +385,12 @@ struct Module {
 }
 
 struct TypeStringifier<'a> {
-    registry: &'a ClassRegistry,
+    registry: &'a PackageRegistry,
     imports: HashSet<IdName>,
 }
 
 impl<'a> TypeStringifier<'a> {
-    pub fn new(registry: &'a ClassRegistry) -> Self {
+    pub fn new(registry: &'a PackageRegistry) -> Self {
         Self {
             registry,
             imports: HashSet::new(),
