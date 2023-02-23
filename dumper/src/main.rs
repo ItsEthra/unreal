@@ -1,15 +1,18 @@
 use crate::package::merge;
 use argh::FromArgs;
 use eyre::Result;
-use log::info;
+use log::{info, warn};
 use names::GNames;
 use objects::GObjects;
 use offsets::Offsets;
 use package::dump_packages;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
-use sourcer::{lang::RustSdkGenerator, PackageRegistry, SdkGenerator};
-use std::{cell::RefCell, fs, io::Write, ops::Deref, rc::Rc, time::Instant};
+use sourcer::{
+    lang::{DummySdkGenerator, RustSdkGenerator},
+    PackageRegistry, SdkGenerator,
+};
+use std::{cell::RefCell, env, fs, io::Write, ops::Deref, rc::Rc, time::Instant};
 
 mod macros;
 mod names;
@@ -52,6 +55,10 @@ struct Args {
     #[argh(option, short = 'O')]
     /// address of GObjects, in hex.
     objects: Option<String>,
+
+    #[argh(switch, short = 'D')]
+    /// enable dummy mode, prevents generator from writing sdk to disk.
+    dummy: bool,
 }
 
 fn main() -> Result<()> {
@@ -104,7 +111,12 @@ fn main() -> Result<()> {
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
-    let mut sdkgen = RustSdkGenerator::new(".", info.offsets)?;
+    let mut sdkgen = if env::var("DUMMY").as_deref() == Ok("true") || args.dummy {
+        warn!("Running in dummy mode, no files to disc will be written.");
+        Box::new(DummySdkGenerator::new(".", info.offsets)?) as Box<dyn SdkGenerator>
+    } else {
+        Box::new(RustSdkGenerator::new(".", info.offsets)?) as Box<dyn SdkGenerator>
+    };
 
     let (packages, registry) = {
         let mut rg = PackageRegistry::default();
