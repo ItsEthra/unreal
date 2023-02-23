@@ -17,11 +17,11 @@ use std::{
 
 fn pick_enum_size(min_max: Option<(i64, i64)>) -> (&'static str, usize) {
     if let Some((min, max)) = min_max {
-        if i8::MAX as i64 > max && (i8::MIN as i64) < min {
+        if u8::MAX as i64 >= max && (i8::MIN as i64) <= min {
             ("i8", 1)
-        } else if i16::MAX as i64 > max && (i16::MIN as i64) < min {
+        } else if u16::MAX as i64 >= max && (i16::MIN as i64) <= min {
             ("i16", 2)
-        } else if i32::MAX as i64 > max && (i32::MIN as i64) < min {
+        } else if u32::MAX as i64 >= max && (i32::MIN as i64) <= min {
             ("i32", 4)
         } else {
             ("i64", 8)
@@ -29,6 +29,11 @@ fn pick_enum_size(min_max: Option<(i64, i64)>) -> (&'static str, usize) {
     } else {
         ("i32", 4)
     }
+}
+
+#[test]
+fn test_enum_size() {
+    assert_eq!(pick_enum_size(Some((0, 255))), ("i8", 1));
 }
 
 struct EnumGen<'a> {
@@ -85,7 +90,7 @@ impl<'a> StructGenerator for StructGen<'a> {
         self.layout = layout;
         self.name = name.to_string();
 
-        let mut parent_code_and_full_name = None;
+        let mut parent_code_full_name_and_size = None;
 
         writeln!(self.module.classes, "// {id_name}")?;
         writeln!(
@@ -100,8 +105,8 @@ impl<'a> StructGenerator for StructGen<'a> {
                 let RegistrationExtra::ClassLayout(parent_layout) = parent_data.extra else {
                         return Err(eyre!("Deriving from enum is not allowed"))
                 };
-                self.offset = parent_layout.align();
-                parent_code_and_full_name = Some((&parent_data.code_name, parent_id));
+                parent_code_full_name_and_size =
+                    Some((&parent_data.code_name, parent_id, parent_layout.align()));
 
                 Cow::Owned(format!(" (Parent: 0x{:X})", parent_layout.align()))
             } else {
@@ -111,11 +116,12 @@ impl<'a> StructGenerator for StructGen<'a> {
         writeln!(self.module.classes, "memflex::makestruct! {{")?;
 
         // TODO: Implement zeroed from bytemuck, maybe reexport Zeroed trait in memflex?
-        if let Some((pcode, pfull)) = parent_code_and_full_name {
+        if let Some((pcode, pfull, psize)) = parent_code_full_name_and_size {
             if pcode == name {
                 warn!("{pfull} is recursive. Skipping parenting");
                 writeln!(self.module.classes, "\tpub struct {name} {{",)?;
             } else {
+                self.offset = psize;
                 writeln!(self.module.classes, "\tpub struct {name} : {pcode} {{",)?;
             }
             self.module.imports.insert(pfull.clone());
@@ -133,9 +139,9 @@ impl<'a> StructGenerator for StructGen<'a> {
         elem_size: usize,
         offset: usize,
     ) -> Result<()> {
-        let maybe_enum_size = match field_ty {
+        let maybe_enum_min_max = match field_ty {
             PropertyType::Inline(ref id) => match self.registry.lookup(id).unwrap().extra {
-                RegistrationExtra::EnumMinMax(min_max) => Some(pick_enum_size(min_max).1),
+                RegistrationExtra::EnumMinMax(min_max) => Some(min_max),
                 _ => None,
             },
             _ => None,
@@ -143,8 +149,8 @@ impl<'a> StructGenerator for StructGen<'a> {
 
         let size = match field_ty {
             PropertyType::Array { ref size, .. } => *size as usize * elem_size,
-            _ => match maybe_enum_size {
-                Some(enum_size) => enum_size.min(elem_size),
+            _ => match maybe_enum_min_max {
+                Some(enum_size) => pick_enum_size(enum_size).1.min(elem_size),
                 _ => elem_size,
             },
         };
@@ -324,6 +330,8 @@ impl SdkGenerator for RustSdkGenerator {
                 "non_snake_case",
                 "non_upper_case_globals",
                 "dead_code",
+                "overflowing_literals",
+                "unused_imports",
             ];
 
             for warn in WARNINGS {
