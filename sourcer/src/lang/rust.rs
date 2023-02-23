@@ -147,6 +147,9 @@ impl<'a> StructGenerator for StructGen<'a> {
                 self.offset,
                 offset - self.offset,
             )?;
+        } else if offset < self.offset {
+            warn!("{field_name}: {typename} has offset that less than the previous, skipping field to prevent overflows.");
+            return Ok(());
         }
         self.offset = offset + size;
 
@@ -301,6 +304,7 @@ impl SdkGenerator for RustSdkGenerator {
                 "non_camel_case_types",
                 "non_snake_case",
                 "non_upper_case_globals",
+                "dead_code",
             ];
 
             for warn in WARNINGS {
@@ -427,7 +431,7 @@ impl<'a> TypeStringifier<'a> {
             PropertyType::ClassPtr(ty) => {
                 format!("Option<ucore::Ptr<{}>>", self.stringify(*ty)).into()
             }
-            PropertyType::Name => "ucore::FName".into(),
+            PropertyType::Name => "crate::FName".into(),
             PropertyType::String => "ucore::FString".into(),
             PropertyType::Text => "ucore::FText".into(),
             PropertyType::Inline(id) => fetch_dep(id).into(),
