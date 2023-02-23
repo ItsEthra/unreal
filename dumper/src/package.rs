@@ -4,17 +4,17 @@ use crate::{
     ptr::Ptr,
     utils::{
         get_fbool_prop_bit_data, get_ffield_name, get_fproperty_element_size, get_fproperty_offset,
-        get_fproperty_type, get_uenum_names, get_uobject_code_name, get_uobject_full_name,
-        get_uobject_name, get_uobject_package, get_ustruct_alignment, get_ustruct_children_props,
-        get_ustruct_layout, get_ustruct_parent, get_ustruct_size, is_uobject_inherits,
-        iter_ffield_linked_list, sanitize_ident,
+        get_fproperty_type, get_uenum_min_max, get_uenum_names, get_uobject_code_name,
+        get_uobject_full_name, get_uobject_name, get_uobject_package, get_ustruct_alignment,
+        get_ustruct_children_props, get_ustruct_layout, get_ustruct_parent, get_ustruct_size,
+        is_uobject_inherits, iter_ffield_linked_list, sanitize_ident,
     },
     Info,
 };
 use eyre::{eyre, Result};
 use log::{info, trace};
 use sourcer::{
-    ClassRegistry, EnumGenerator, IdName, Layout, PackageGenerator, PropertyType, StructGenerator,
+    EnumGenerator, IdName, Layout, PackageGenerator, PackageRegistry, PropertyType, StructGenerator,
 };
 use std::{
     borrow::Cow,
@@ -86,14 +86,7 @@ impl Package {
         let code_name = get_uobject_code_name(info, uenum_ptr)?;
         let full_name = get_uobject_full_name(info, uenum_ptr)?;
 
-        let min_max = pairs
-            .iter()
-            .map(|(_, k)| k)
-            .min()
-            .copied()
-            .zip(pairs.iter().map(|(_, k)| k).max().copied());
-
-        enum_cg.begin(&code_name, full_name.into(), min_max)?;
+        enum_cg.begin(&code_name, full_name.into())?;
         for (name, value) in pairs {
             enum_cg.append_variant(&name, value)?;
         }
@@ -168,7 +161,7 @@ impl Package {
     }
 }
 
-pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Package>> {
+pub fn dump_packages(info: &Info, registry: &mut PackageRegistry) -> Result<Vec<Package>> {
     let mut map: HashMap<String, Vec<Object>> = HashMap::new();
 
     let struct_sc = info.objects.struct_static_class(info)?;
@@ -188,15 +181,16 @@ pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Pa
             trace!("Found new package {package_name}");
         }
 
-        let layout = if is_a(struct_sc)? {
-            Some(get_ustruct_layout(info, ptr)?)
-        } else {
-            None
-        };
-
         let obj_full_name = get_uobject_full_name(info, ptr)?;
         let obj_code_name = get_uobject_code_name(info, ptr)?;
-        registry.set_owner(obj_full_name, &package_name, obj_code_name, layout);
+
+        if is_a(struct_sc)? {
+            let layout = get_ustruct_layout(info, ptr)?;
+            registry.set_class_owner(obj_full_name, &package_name, obj_code_name, layout);
+        } else if is_a(enum_sc)? {
+            let min_max = get_uenum_min_max(info, ptr)?;
+            registry.set_enum_owner(obj_full_name, &package_name, obj_code_name, min_max);
+        }
 
         let classes = map.entry(package_name).or_insert(vec![]);
         classes.push(Object {
@@ -218,7 +212,7 @@ pub fn dump_packages(info: &Info, registry: &mut ClassRegistry) -> Result<Vec<Pa
 pub fn merge(
     merger: &str,
     target: &str,
-    registry: &mut ClassRegistry,
+    registry: &mut PackageRegistry,
     packages: &mut Vec<Package>,
 ) -> Result<()> {
     let target = packages.remove(

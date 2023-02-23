@@ -8,7 +8,7 @@ use offsets::Offsets;
 use package::dump_packages;
 use process::{ExternalProcess, Process};
 use ptr::Ptr;
-use sourcer::{lang::RustSdkGenerator, ClassRegistry, SdkGenerator};
+use sourcer::{lang::RustSdkGenerator, PackageRegistry, SdkGenerator};
 use std::{cell::RefCell, fs, io::Write, ops::Deref, rc::Rc, time::Instant};
 
 mod macros;
@@ -107,7 +107,7 @@ fn main() -> Result<()> {
     let mut sdkgen = RustSdkGenerator::new(".", info.offsets)?;
 
     let (packages, registry) = {
-        let mut rg = ClassRegistry::default();
+        let mut rg = PackageRegistry::default();
         let mut pkgs = dump_packages(&info, &mut rg)?;
         info!("Registry entries: {}", rg.len());
 
