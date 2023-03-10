@@ -12,7 +12,14 @@ use sourcer::{
     lang::{DummySdkGenerator, RustSdkGenerator},
     PackageRegistry, SdkGenerator,
 };
-use std::{cell::RefCell, env, fs, io::Write, ops::Deref, rc::Rc, time::Instant};
+use std::{
+    cell::RefCell,
+    env, fs,
+    io::{self, Write},
+    ops::Deref,
+    rc::Rc,
+    time::Instant,
+};
 
 mod macros;
 mod names;
@@ -65,16 +72,30 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     env_logger::builder().format_timestamp(None).init();
 
+    #[cfg(unix)]
+    let user_id = {
+        env::var("SUDO_UID")
+            .ok()
+            .and_then(|uid| uid.parse::<u32>().ok())
+            .unwrap_or_else(|| unsafe { libc::getuid() })
+    };
+
     let args: Args = argh::from_env();
 
-    let names_dump = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open("NamesDump.txt")?;
-    let objects_dump = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open("ObjectsDump.txt")?;
+    let create_sink = |file_name: &str| -> Result<RefCell<Box<dyn Write>>> {
+        let sink = if args.dummy {
+            Box::new(io::sink()) as Box<dyn Write>
+        } else {
+            let file = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(file_name)?;
+            Box::new(file) as Box<dyn Write>
+        }
+        .into();
+
+        Ok(sink)
+    };
 
     let mut info = Info {
         process: Box::new(ExternalProcess::new(args.pid)?),
@@ -82,8 +103,8 @@ fn main() -> Result<()> {
         objects: GlobalProxy(None),
         offsets: &offsets::DEFAULT,
 
-        names_dump: (Box::new(names_dump) as Box<dyn Write>).into(),
-        objects_dump: (Box::new(objects_dump) as Box<dyn Write>).into(),
+        names_dump: create_sink("NamesDump.txt")?,
+        objects_dump: create_sink("ObjectsDump.txt")?,
     };
 
     let map_addr_arg = |s: String| {
@@ -139,6 +160,16 @@ fn main() -> Result<()> {
     sdkgen.end()?;
 
     info!("Finished in {:?}", start.elapsed());
+
+    #[cfg(unix)]
+    if !args.dummy {
+        info!("Fixing permissions");
+        const TROUBLESOME_PATHS: &[&[u8]] = &[b"usdk\0", b"NamesDump.txt\0", b"ObjectsDump.txt\0"];
+
+        TROUBLESOME_PATHS.iter().for_each(|p| {
+            unsafe { libc::chown(p.as_ptr() as _, user_id, user_id) };
+        });
+    }
 
     Ok(())
 }
