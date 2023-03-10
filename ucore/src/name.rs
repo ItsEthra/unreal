@@ -197,8 +197,8 @@ impl<
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let idx = self.index();
-        let string = GlobalContext::<STRIDE>::get()
-            .name_pool()
+        let string = GlobalContext::get()
+            .name_pool::<STRIDE>()
             .resolve::<HEADER, DATA, WIDE_BIT, LEN_BIT>(idx)
             .to_str();
         write!(f, "{string}")

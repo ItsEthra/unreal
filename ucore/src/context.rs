@@ -3,18 +3,15 @@
 use crate::FNamePool;
 use std::{mem::transmute, ptr::NonNull};
 
-static mut CONTEXT: Option<GlobalContext<0>> = None;
+static mut CONTEXT: Option<GlobalContext> = None;
 
-pub struct GlobalContext<const STRIDE: usize> {
+pub struct GlobalContext {
     objects: NonNull<()>,
     names: NonNull<()>,
 }
 
-impl<const STRIDE: usize> GlobalContext<STRIDE> {
-    pub fn new_init_global(
-        objects: NonNull<()>,
-        names: NonNull<()>,
-    ) -> &'static GlobalContext<STRIDE> {
+impl GlobalContext {
+    pub fn new_init_global(objects: NonNull<()>, names: NonNull<()>) -> &'static GlobalContext {
         unsafe {
             if CONTEXT.is_none() {
                 CONTEXT = Some(transmute(Self { objects, names }));
@@ -26,16 +23,12 @@ impl<const STRIDE: usize> GlobalContext<STRIDE> {
     }
 
     #[inline]
-    pub(crate) fn get() -> &'static GlobalContext<STRIDE> {
-        unsafe {
-            let s0: &'static GlobalContext<0> =
-                CONTEXT.as_ref().expect("GlobalContext is not initialized");
-            transmute(s0)
-        }
+    pub(crate) fn get() -> &'static GlobalContext {
+        unsafe { CONTEXT.as_ref().expect("GlobalContext was not initialized") }
     }
 
     #[inline]
-    pub(crate) fn name_pool(&self) -> &FNamePool<STRIDE> {
+    pub(crate) fn name_pool<const STRIDE: usize>(&self) -> &FNamePool<STRIDE> {
         unsafe { self.names.cast::<FNamePool<STRIDE>>().as_ref() }
     }
 }
