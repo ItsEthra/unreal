@@ -210,7 +210,7 @@ pub fn dump_packages(info: &Info, registry: &mut PackageRegistry) -> Result<Vec<
 
 // Merges `target` into `merger`
 pub fn merge(
-    merger: &str,
+    consumer: &str,
     target: &str,
     registry: &mut PackageRegistry,
     packages: &mut Vec<Package>,
@@ -223,13 +223,13 @@ pub fn merge(
     );
 
     for Object { id, .. } in target.objects.iter() {
-        registry.lookup_mut(id).unwrap().package = merger.to_owned();
+        registry.lookup_mut(id).unwrap().package = consumer.to_owned();
     }
 
     let merger = packages
         .iter_mut()
-        .find(|p| p.name == merger)
-        .ok_or(eyre!("Failed to find package {merger}"))?;
+        .find(|p| p.name == consumer)
+        .ok_or(eyre!("Failed to find package {consumer}"))?;
     merger.objects.extend(target.objects);
 
     Ok(())
