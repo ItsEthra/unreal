@@ -69,16 +69,10 @@ pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
             first_block_slot_ptr + size_of::<usize>() * i,
             bytes_of_mut(&mut block_ptr),
         )?;
-
         let block_size = info.offsets.stride * FNAME_BLOCK_OFFSETS as usize;
 
         trace!("Dumping name block: {block_ptr:?}");
-        let block = dump_name_block(info, block_ptr, block_size)?;
-
-        let old_name_count = name_count;
-        block.for_each_name(|_| name_count += 1);
-        trace!("Found {} names", name_count - old_name_count);
-
+        let block = dump_name_block(info, block_ptr, block_size, &mut name_count)?;
         blocks.push(block);
     }
 
@@ -90,7 +84,12 @@ pub fn dump_names(info: &Info, gnames: Ptr) -> Result<GNames> {
         )?;
 
         trace!("Dumping name block: {block_ptr:?}");
-        let last_block = dump_name_block(info, block_ptr, current_byte_cursor as usize)?;
+        let last_block = dump_name_block(
+            info,
+            block_ptr,
+            current_byte_cursor as usize,
+            &mut name_count,
+        )?;
         blocks.push(last_block);
     }
 
@@ -150,7 +149,12 @@ impl NameBlock {
     }
 }
 
-fn dump_name_block(info: &Info, name_block_ptr: Ptr, block_size: usize) -> Result<NameBlock> {
+fn dump_name_block(
+    info: &Info,
+    name_block_ptr: Ptr,
+    block_size: usize,
+    name_count: &mut usize,
+) -> Result<NameBlock> {
     // I am not using `MaybeUninit<u8>` here because its making everything else
     // look ugly because rustc can't stabilize very useful feature smh.
     let mut data: Vec<u8> = Vec::with_capacity(block_size);
@@ -171,7 +175,10 @@ fn dump_name_block(info: &Info, name_block_ptr: Ptr, block_size: usize) -> Resul
     };
 
     let mut f = info.names_dump.borrow_mut();
-    block.for_each_name(|n| _ = writeln!(f, "{n}"));
+    block.for_each_name(|n| {
+        writeln!(f, "{n}").unwrap();
+        *name_count += 1;
+    });
 
     Ok(block)
 }
