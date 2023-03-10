@@ -49,7 +49,7 @@ pub struct Info {
 }
 
 #[derive(FromArgs)]
-/// UE 4.27+ Dumper by @ItsEthra.
+/// UE 4.25+ Dumper by @ItsEthra.
 struct Args {
     #[argh(positional)]
     /// process id.
@@ -63,9 +63,13 @@ struct Args {
     /// address of GObjects, in hex.
     objects: Option<String>,
 
-    #[argh(switch, short = 'D')]
+    #[argh(switch)]
     /// enable dummy mode, prevents generator from writing sdk to disk.
     dummy: bool,
+
+    #[argh(option, short = 'M')]
+    /// string of format `consumer:target`. Instructs dumper to merge `target` package into `consumer`.
+    merge: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -81,6 +85,12 @@ fn main() -> Result<()> {
     };
 
     let args: Args = argh::from_env();
+    let merges: Vec<(&str, &str)> = args
+        .merge
+        .iter()
+        .flat_map(|s| s.split(','))
+        .map(|s| s.split_once(':').expect("Invalid merge string"))
+        .collect();
 
     let create_sink = |file_name: &str| -> Result<RefCell<Box<dyn Write>>> {
         let sink = if args.dummy {
@@ -89,6 +99,7 @@ fn main() -> Result<()> {
             let file = fs::OpenOptions::new()
                 .write(true)
                 .create(true)
+                .truncate(true)
                 .open(file_name)?;
             Box::new(file) as Box<dyn Write>
         }
@@ -132,7 +143,7 @@ fn main() -> Result<()> {
     let gobjects = objects::dump_objects(&info, objects_ptr)?;
     info.objects.0 = Some(gobjects);
 
-    let mut sdkgen = if env::var("DUMMY").as_deref() == Ok("true") || args.dummy {
+    let mut sdkgen = if args.dummy {
         warn!("Running in dummy mode, no files to disc will be written.");
         Box::new(DummySdkGenerator::new(".", info.offsets)?) as Box<dyn SdkGenerator>
     } else {
@@ -144,7 +155,9 @@ fn main() -> Result<()> {
         let mut pkgs = dump_packages(&info, &mut rg)?;
         info!("Registry entries: {}", rg.len());
 
-        merge("Engine", "Landscape", &mut rg, &mut pkgs)?;
+        for (consumer, target) in &merges {
+            merge(*consumer, *target, &mut rg, &mut pkgs)?;
+        }
 
         (pkgs, Rc::new(rg))
     };
