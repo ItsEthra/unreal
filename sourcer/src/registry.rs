@@ -2,39 +2,70 @@ use crate::{IdName, Layout};
 use std::collections::HashMap;
 
 #[derive(Debug)]
-#[allow(dead_code)]
-pub struct ClassData {
+pub enum RegistrationExtra {
+    ClassLayout(Layout),
+    EnumMinMax(Option<(i64, i64)>),
+}
+
+impl RegistrationExtra {
+    pub fn unwrap_enum(&self) -> Option<(i64, i64)> {
+        match self {
+            RegistrationExtra::ClassLayout(_) => unreachable!(),
+            RegistrationExtra::EnumMinMax(e) => e.clone(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RegistrationData {
     pub package: String,
     pub code_name: String,
-    // Not set for enums
-    pub layout: Option<Layout>,
+    pub extra: RegistrationExtra,
 }
 
 #[derive(Debug, Default)]
-pub struct ClassRegistry {
-    packages: HashMap<IdName, ClassData>,
+pub struct PackageRegistry {
+    packages: HashMap<IdName, RegistrationData>,
 }
 
-impl ClassRegistry {
-    pub fn set_owner(
+impl PackageRegistry {
+    pub fn set_class_owner(
         &mut self,
         identifier: impl Into<IdName>,
         package: impl Into<String>,
-        code_name: impl Into<String>,
-        layout: Option<Layout>,
+        class_code_name: impl Into<String>,
+        layout: Layout,
     ) {
-        self.packages.entry(identifier.into()).or_insert(ClassData {
-            package: package.into(),
-            code_name: code_name.into(),
-            layout,
-        });
+        self.packages
+            .entry(identifier.into())
+            .or_insert(RegistrationData {
+                package: package.into(),
+                code_name: class_code_name.into(),
+                extra: RegistrationExtra::ClassLayout(layout),
+            });
     }
 
-    pub fn lookup(&self, identifier: &IdName) -> Option<&ClassData> {
+    pub fn set_enum_owner(
+        &mut self,
+        identifier: impl Into<IdName>,
+        package: impl Into<String>,
+        enum_code_name: impl Into<String>,
+        min_max: Option<(i64, i64)>,
+    ) {
+        self.packages
+            .entry(identifier.into())
+            .or_insert(RegistrationData {
+                package: package.into(),
+                code_name: enum_code_name.into(),
+                extra: RegistrationExtra::EnumMinMax(min_max),
+            });
+    }
+
+    pub fn lookup(&self, identifier: &IdName) -> Option<&RegistrationData> {
         self.packages.get(identifier)
     }
 
-    pub fn lookup_mut(&mut self, identifier: &IdName) -> Option<&mut ClassData> {
+    pub fn lookup_mut(&mut self, identifier: &IdName) -> Option<&mut RegistrationData> {
         self.packages.get_mut(identifier)
     }
 

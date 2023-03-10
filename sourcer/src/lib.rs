@@ -6,8 +6,8 @@ pub mod lang;
 
 mod property;
 pub use property::*;
-mod deps;
-pub use deps::*;
+mod registry;
+pub use registry::*;
 
 pub trait StructGenerator {
     fn begin(
