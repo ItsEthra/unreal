@@ -326,9 +326,11 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
 
     writeln!(w, "    }}\n}}\n")?;
 
-    writeln!(w, "memflex::bitfields! {{")?;
-    write!(w, "{bitfields}")?;
-    writeln!(w, "}}\n")?;
+    if !bitfields.is_empty() {
+        writeln!(w, "memflex::bitfields! {{")?;
+        write!(w, "{bitfields}")?;
+        writeln!(w, "}}\n")?;
+    }
 
     Ok(())
 }
