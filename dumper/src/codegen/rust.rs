@@ -236,7 +236,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     }
 
     let mut dedup = NameDedup::default();
-    let mut epilog = String::new();
+    let mut bitfields = String::new();
 
     for field in fields {
         match field {
@@ -295,12 +295,19 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                     o = group.offset,
                 )?;
 
-                writeln!(epilog, "memflex::bitfields! {{")?;
-                writeln!(epilog, "    {}.bitfield_{:#X} : u8 {{", ident, group.offset)?;
+                writeln!(
+                    bitfields,
+                    "    {}.bitfield_{:#X} : u8 {{",
+                    ident, group.offset
+                )?;
                 for Bitfield { name, offset, len } in &group.items {
-                    writeln!(epilog, "        {name}: {offset}..={},", *offset + *len - 1)?;
+                    writeln!(
+                        bitfields,
+                        "        {name}: {offset}..={},",
+                        *offset + *len - 1
+                    )?;
                 }
-                writeln!(epilog, "    }}\n}}\n")?;
+                writeln!(bitfields, "    }}\n")?;
 
                 // Groups are always 1 byte.
                 offset = group.offset + 1;
@@ -318,7 +325,10 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     }
 
     writeln!(w, "    }}\n}}\n")?;
-    write!(w, "{epilog}")?;
+
+    writeln!(w, "memflex::bitfields! {{")?;
+    write!(w, "{bitfields}")?;
+    writeln!(w, "}}\n")?;
 
     Ok(())
 }

@@ -13,6 +13,6 @@ Tooling for generating SDK for UE 4.25+ games.
 
 ## Usage
 - Clone the repository with `git clone https://github.com/ItsEthra/unreal && cd unreal`
-- Run the dumper and specify process id, FNamePool and TUObjectArray(`FUObjectArray + 0x10``) offsets.\
+- Run the dumper and specify process id, FNamePool and TUObjectArray(`FUObjectArray + 0x10`) offsets.\
  `cargo r --release -- -p <PID> -n <FNamePool> -o <TUObjectArray>`
 - Done! Your SDK should be in `usdk` folder.
