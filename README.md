@@ -7,11 +7,12 @@ Tooling for generating SDK for UE 4.25+ games.
 ## Features
 - 🗃️ Rust SDK for your Unreal Engine game.
 - 🔧 Flexible SDK generation allows you to easily add support for other languages.
-- 🔥 Blazingly fast. `[INFO  dumper] Finished in 1.319184584s`
+- 🔥 Blazingly fast. `[ INFO ] Dumper finished in 1.79s`
 - 🌐 Cross platform. Tested on windows and linux.
+- ♻️ Automatic elimination of dependency cycles.
 
 ## Usage
 - Clone the repository with `git clone https://github.com/ItsEthra/unreal && cd unreal`
-- Run the dumper and specify process id, FNamePool(GNames) and FUObjectArray(GObjects) addresses.\
- `cargo r -- <PID> -N <GNames> -O <GObjects>`
+- Run the dumper and specify process id, FNamePool and TUObjectArray(`FUObjectArray + 0x10``) offsets.\
+ `cargo r --release -- -p <PID> -n <FNamePool> -o <TUObjectArray>`
 - Done! Your SDK should be in `usdk` folder.
