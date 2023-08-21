@@ -1,2 +1,2 @@
 #[repr(transparent)]
-pub struct UObject<const SIZE: usize, const PROCESS_EVENT: usize>([u8; SIZE]);
+pub struct UObject([u8; 0x28]);

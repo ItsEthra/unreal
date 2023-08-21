@@ -1,34 +1,36 @@
 #![allow(dead_code)]
 
 use crate::FNamePool;
-use std::{mem::transmute, ptr::NonNull};
-
-static mut CONTEXT: Option<GlobalContext> = None;
+use std::sync::OnceLock;
 
 pub struct GlobalContext {
-    objects: NonNull<()>,
-    names: NonNull<()>,
+    objects: *mut (),
+    names: *mut (),
 }
 
+unsafe impl Sync for GlobalContext {}
+unsafe impl Send for GlobalContext {}
+
+static CONTEXT: OnceLock<GlobalContext> = OnceLock::new();
+
 impl GlobalContext {
-    pub fn new_init_global(objects: NonNull<()>, names: NonNull<()>) -> &'static GlobalContext {
-        unsafe {
-            if CONTEXT.is_none() {
-                CONTEXT = Some(transmute(Self { objects, names }));
-                Self::get()
-            } else {
-                panic!("GlobalContext is already initialized")
-            }
-        }
+    pub fn init(self) -> &'static Self {
+        assert!(
+            CONTEXT.set(self).is_ok(),
+            "GlobalContext is already initialized"
+        );
+
+        Self::get()
     }
 
     #[inline]
-    pub(crate) fn get() -> &'static GlobalContext {
-        unsafe { CONTEXT.as_ref().expect("GlobalContext was not initialized") }
+    pub fn get() -> &'static Self {
+        CONTEXT
+            .get()
+            .expect("GlobalContext has not yet been initialized")
     }
 
-    #[inline]
-    pub(crate) fn name_pool<const STRIDE: usize>(&self) -> &FNamePool<STRIDE> {
-        unsafe { self.names.cast::<FNamePool<STRIDE>>().as_ref() }
+    pub(crate) fn name_pool(&self) -> &FNamePool {
+        todo!()
     }
 }
