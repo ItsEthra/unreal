@@ -1,5 +1,24 @@
-use crate::{assert_size, FName, Ptr};
+use crate::{assert_size, FName, GlobalContext, Ptr};
 use bitflags::bitflags;
+use std::ptr::NonNull;
+
+pub struct FUObjectItem {
+    pub object: *const (),
+    pub flags: u32,
+    pub root_index: i32,
+    pub serial: u32,
+}
+assert_size!(FUObjectItem, 0x18);
+
+#[allow(dead_code)]
+pub struct FChunkedFixedUObjectArray {
+    objects: Ptr<Ptr<FUObjectItem>>,
+    preallocated: Ptr<FUObjectItem>,
+    max_elems: u32,
+    num_elems: u32,
+    max_chunks: u32,
+    num_chunks: u32,
+}
 
 // PEIDX = Process Event Index
 #[repr(C)]
@@ -19,8 +38,15 @@ unsafe impl<const PEIDX: usize> Send for UObject<PEIDX> {}
 unsafe impl<const PEIDX: usize> Sync for UObject<PEIDX> {}
 
 impl<const PEIDX: usize> UObject<PEIDX> {
-    pub fn get_by_index(_idx: usize) -> Ptr<Self> {
-        todo!()
+    pub fn get_by_index(idx: usize) -> Ptr<Self> {
+        const NUM_ELEMS_PER_CHUNK: usize = 64 * 1024;
+
+        let chunk_idx = idx / NUM_ELEMS_PER_CHUNK;
+        let array = GlobalContext::get().chunked_fixed_uobject_array();
+        let chunk = unsafe { array.objects.0.as_ptr().add(chunk_idx).read() };
+        let objitem = unsafe { chunk.0.as_ptr().add(idx % NUM_ELEMS_PER_CHUNK) };
+        let object = NonNull::new(unsafe { (*objitem).object.cast_mut().cast() }).unwrap();
+        Ptr(object)
     }
 
     pub fn flags(&self) -> ObjectFlags {

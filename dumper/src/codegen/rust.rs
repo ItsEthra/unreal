@@ -383,7 +383,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
             w,
             "{{\n        static FUNCTION: SyncLazy<Ptr<ucore::UObject<0x4D>>> = SyncLazy::new(|| ucore::UObject::get_by_index({index}));\n"
         )?;
-        writeln!(w, "        struct Args {{\n{fields}        }}\n")?;
+        writeln!(w, "       #[repr(C)]\n         struct Args {{\n{fields}        }}\n")?;
 
         writeln!(
             w,
