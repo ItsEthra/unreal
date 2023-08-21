@@ -156,6 +156,7 @@ impl FNamePool {
     }
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct FName([u8; 8]);
 

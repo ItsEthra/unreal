@@ -39,8 +39,27 @@ impl<const SIZE: usize, T> DerefMut for Shrink<SIZE, T> {
     }
 }
 
+#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Ptr<T: ?Sized>(pub NonNull<T>);
+
+impl<T: ?Sized> Clone for Ptr<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+impl<T: ?Sized> Copy for Ptr<T> {}
+
+unsafe impl<T: ?Sized> Send for Ptr<T> {}
+unsafe impl<T: ?Sized> Sync for Ptr<T> {}
+
+impl<T: ?Sized> From<NonNull<T>> for Ptr<T> {
+    #[inline]
+    fn from(ptr: NonNull<T>) -> Self {
+        Self(ptr)
+    }
+}
 
 impl<T: ?Sized> Deref for Ptr<T> {
     type Target = T;

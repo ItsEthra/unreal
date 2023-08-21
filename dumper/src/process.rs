@@ -1,10 +1,10 @@
 use crate::{
     engine::{
-        BoolVars, FBoolProperty, FFieldPtr, FPropertyPtr, UClassPtr, UEnumPtr, UObjectPtr,
-        UStructPtr,
+        BoolVars, FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr,
+        UObjectPtr, UStructPtr,
     },
     fqn,
-    sdk::{Enum, Field, FieldOptions, Object, Package, PropertyKind, Sdk, Struct},
+    sdk::{Enum, Field, FieldOptions, Function, Object, Package, PropertyKind, Sdk, Struct},
     utils::{
         sanitize_ident, strip_package_name, AccumulatorResult, BitfieldAccumulator, Fqn, Layout,
     },
@@ -13,7 +13,12 @@ use crate::{
 use anyhow::{bail, Result};
 use log::{info, trace, warn};
 use memflex::sizeof;
-use petgraph::{graph::NodeIndex, stable_graph::StableGraph, Directed};
+use petgraph::{
+    graph::NodeIndex,
+    stable_graph::StableGraph,
+    Directed,
+    Direction::{Incoming, Outgoing},
+};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -26,32 +31,61 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
     let mut foreign_map: HashMap<NodeIndex, HashSet<Fqn>> = HashMap::new();
 
     for object in objects {
-        let Some(package) = get_outermost_object(*object)? else {
+        let Some(outer) = get_outermost_object(*object)? else {
             continue;
         };
 
-        assert!(!package.is_null() && package.outer()?.is_null());
-        let package_name = sanitize_ident(strip_package_name(package.name().get()?));
+        assert!(!outer.is_null() && outer.outer()?.is_null());
+        let outer_name = sanitize_ident(strip_package_name(outer.name().get()?));
 
         let object = if object.is_a(fqn!("CoreUObject.Enum"))? {
             Object::Enum(index_enum(object.cast())?)
         } else if object.is_a(fqn!("CoreUObject.ScriptStruct"))? {
-            // Code dupliation is intentional, to avoid ading empty packages.
-            let key = sdk.retrieve_key(&package_name);
+            // Code dupliation is intentional, to avoid ading wrong or empty packages.
+            let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
             Object::Struct(index_struct(object.cast(), false, foreign)?)
         } else if object.is_a(fqn!("CoreUObject.Class"))? {
-            // Code dupliation is intentional, to avoid ading empty packages.
-            let key = sdk.retrieve_key(&package_name);
+            // Code dupliation is intentional, to avoid ading wrong or empty packages.
+            let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
             Object::Class(index_struct(object.cast(), true, foreign)?)
         } else {
             continue;
         };
-        sdk.add(&package_name, object);
+        sdk.add(&outer_name, object);
     }
-
     info!("Found {} packages", sdk.packages.node_count());
+
+    let mut num_funcs = 0;
+    for object in objects {
+        let Some(outer) = get_outermost_object(*object)? else {
+            continue;
+        };
+
+        if object.is_a(fqn!("CoreUObject.Function"))? {
+            assert!(!outer.is_null() && outer.outer()?.is_null());
+            let outer_name = sanitize_ident(strip_package_name(outer.name().get()?));
+
+            let key = sdk.retrieve_key(&outer_name);
+            let foreign = foreign_map.entry(key).or_default();
+            let Ok(target) = object.outer()?.fqn() else {
+                continue;
+            };
+
+            let function = index_function(*object, foreign)?;
+            let (Object::Class(target) | Object::Struct(target)) =
+                &*sdk.owned.get(&target).unwrap().ptr
+            else {
+                // Functions will be only in classes or structs.
+                unreachable!()
+            };
+
+            target.functions.borrow_mut().push(function);
+            num_funcs += 1;
+        }
+    }
+    info!("Found {num_funcs} functions");
 
     populate_dependency_map(&mut sdk, foreign_map);
     shrink_base_classes(&sdk);
@@ -109,7 +143,34 @@ fn eliminate_dependency_cycles(sdk: &mut Sdk) {
             format_cycle(&cycle, &sdk.packages)
         );
 
+        let consumer = cycle[0];
         for idx in (cycle[1..cycle.len() - 1]).iter().rev() {
+            for dependant in sdk
+                .packages
+                .neighbors_directed(*idx, Incoming)
+                .collect::<Vec<_>>()
+            {
+                if dependant != consumer {
+                    sdk.packages.update_edge(dependant, consumer, ());
+                }
+
+                let old = sdk.packages.find_edge(dependant, *idx).unwrap();
+                sdk.packages.remove_edge(old);
+            }
+
+            for dependency in sdk
+                .packages
+                .neighbors_directed(*idx, Outgoing)
+                .collect::<Vec<_>>()
+            {
+                if dependency != consumer {
+                    sdk.packages.update_edge(consumer, dependency, ());
+                }
+
+                let old = sdk.packages.find_edge(*idx, dependency).unwrap();
+                sdk.packages.remove_edge(old);
+            }
+
             let Package { objects, .. } = sdk.packages.remove_node(*idx).unwrap();
             for object in &objects {
                 sdk.owned.get_mut(&object.fqn()).unwrap().package = cycle[0];
@@ -159,6 +220,39 @@ fn get_outermost_object(object: UObjectPtr) -> Result<Option<UObjectPtr>> {
         obj.outer().unwrap().non_null()
     })
     .last())
+}
+
+fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Function> {
+    let ident = sanitize_ident(object.name().get()?).into_owned();
+    let index = object.index()?;
+
+    let mut args = vec![];
+    let mut ret: Option<PropertyKind> = None;
+
+    let ptr = object.cast::<UStructPtr>();
+    for arg in successors(ptr.children_props()?.non_null(), |field| {
+        field.next().unwrap().non_null()
+    }) {
+        let property = arg.cast::<FPropertyPtr>();
+
+        let name = sanitize_ident(arg.name().get()?).into_owned();
+        let kind = get_property_kind(arg, foreign)?;
+        let flags = property.flags()?;
+
+        if flags.contains(PropertyFlags::ReturnParm) {
+            ret = Some(kind);
+        } else {
+            args.push((name, kind))
+        }
+    }
+
+    let function = Function {
+        ident,
+        index,
+        args,
+        ret,
+    };
+    Ok(function)
 }
 
 fn index_enum(uenum_ptr: UEnumPtr) -> Result<Enum> {
@@ -237,6 +331,7 @@ fn index_struct(
 
     let mut ustruct = Struct {
         layout: Layout { size, align },
+        functions: vec![].into(),
         shrink: None.into(),
         fields: vec![],
         parent,

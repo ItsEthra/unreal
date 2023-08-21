@@ -2,8 +2,11 @@ use anyhow::{Context, Result};
 use argh::FromArgs;
 use dumper::{codegen::generate_rust_sdk, DumperOptions, Offsets};
 use log::{info, warn, LevelFilter};
+use petgraph::dot::{Config, Dot};
 use std::{
     collections::HashMap,
+    fs,
+    io::Write,
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -15,10 +18,10 @@ struct Args {
     #[argh(option, short = 'p')]
     pid: u32,
     /// FNamePool offset
-    #[argh(option, short = 'n')]
+    #[argh(option, short = 'N')]
     names: String,
     /// GUObjectArray offset
-    #[argh(option, short = 'o')]
+    #[argh(option, short = 'O')]
     objects: String,
     /// specifies packages to merge together in format `target:consumer`
     #[argh(option, short = 'm')]
@@ -27,11 +30,14 @@ struct Args {
     #[argh(option, short = 't')]
     trace: Vec<String>,
     /// do not write generated SDK to the disk
-    #[argh(switch, short = 'd')]
+    #[argh(switch, short = 'D')]
     dummy: bool,
     /// do not try to eliminate dependency cycles
     #[argh(switch, short = 'C')]
     allow_cycles: bool,
+    /// generate dot file with dependency graph
+    #[argh(option, short = 'o')]
+    dot: Option<String>,
 }
 
 fn parse_hex_arg(arg: &str) -> Result<usize> {
@@ -90,6 +96,20 @@ fn main() -> Result<()> {
     let start = Instant::now();
     let sdk = dumper::run(options, Offsets::DEFAULT)?;
     info!("Dumper finished in {:.2?}", start.elapsed());
+
+    if let Some(mut path) = args.dot {
+        if !path.ends_with(".dot") {
+            path = format!("{path}.dot")
+        }
+
+        let dot = Dot::with_config(&sdk.packages, &[Config::EdgeNoLabel]);
+        fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&path)?
+            .write_all(format!("{dot:?}").as_bytes())?;
+    }
 
     if !args.dummy {
         let start = Instant::now();

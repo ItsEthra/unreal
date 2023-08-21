@@ -9,3 +9,5 @@ mod context;
 pub use context::*;
 mod object;
 pub use object::*;
+
+pub use once_cell::{sync::Lazy as SyncLazy, unsync::Lazy as UnsyncLazy};

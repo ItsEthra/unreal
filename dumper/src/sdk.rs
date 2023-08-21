@@ -3,7 +3,12 @@ use crate::{
     State,
 };
 use petgraph::{graph::NodeIndex, stable_graph::StableGraph, Directed};
-use std::{cell::Cell, collections::HashMap, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    fmt::{self, Debug},
+    rc::Rc,
+};
 
 /// TODO: Someone please educate me on weak pointers.
 /// I can only assume that in this file, I would mostly want to use Weak instead of Rc pointers,
@@ -17,10 +22,15 @@ pub struct Sdk {
     pub owned: HashMap<Fqn, ObjectInfo>,
 }
 
-#[derive(Debug)]
 pub struct Package {
     pub ident: Rc<str>,
     pub objects: Vec<Rc<Object>>,
+}
+
+impl Debug for Package {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.ident)
+    }
 }
 
 impl Package {
@@ -122,6 +132,15 @@ pub struct Struct {
     pub shrink: Cell<Option<usize>>,
     pub layout: Layout,
     pub fields: Vec<Field>,
+    pub functions: RefCell<Vec<Function>>,
+}
+
+#[derive(Debug)]
+pub struct Function {
+    pub ident: String,
+    pub index: u32,
+    pub args: Vec<(String, PropertyKind)>,
+    pub ret: Option<PropertyKind>,
 }
 
 #[derive(Debug)]

@@ -1,5 +1,6 @@
 use crate::{
-    sdk::{Enum, Field, FieldOptions, Object, Package, PropertyKind, Sdk, Struct},
+    fqn,
+    sdk::{Enum, Field, FieldOptions, Function, Object, Package, PropertyKind, Sdk, Struct},
     utils::Bitfield,
 };
 use anyhow::Result;
@@ -86,10 +87,15 @@ fn generate_package(pkg: &Package, crates: &Path, sdk: &Sdk) -> Result<()> {
     non_snake_case,
     non_camel_case_types,
     non_upper_case_globals,
-    unused_imports
+    unused_imports,
+    dead_code
 )]
 
-use ucore::{Ptr, TArray, TSet, TMap, FString, FName};
+use ucore::{Ptr, TArray, TSet, TMap, FString, FName, SyncLazy};
+use std::{ptr::NonNull, mem::zeroed};
+
+type UObject = ucore::UObject<0x4D>;
+
 "#;
 
     let mut lib = BufWriter::new(opts.open(folder.join(format!("{}.rs", pkg.ident)))?);
@@ -189,7 +195,12 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         layout,
         fields,
         shrink,
+        functions,
     } = ustruct;
+
+    if *fqn == fqn!("CoreUObject.Object") {
+        return Ok(());
+    }
 
     writeln!(w, "memflex::makestruct! {{")?;
     writeln!(
@@ -332,16 +343,71 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         writeln!(w, "}}\n")?;
     }
 
+    if !functions.borrow().is_empty() {
+        writeln!(w, "impl {ident} {{")?;
+    }
+
+    for func in functions.borrow().iter() {
+        let Function {
+            ident,
+            index,
+            args,
+            ret,
+        } = func;
+
+        let mut separated: String = "".into();
+        let mut names: String = "".into();
+        let mut fields: String = "".into();
+
+        let mut dedup = NameDedup::default();
+        for (name, kind) in args {
+            let ty = stringify_type(kind, sdk).unwrap_or(Cow::from("*const ()"));
+            let i = dedup.dedup(name);
+            let name = match i {
+                1 => Cow::from(name),
+                _ => Cow::from(format!("{name}_{i}")),
+            };
+            write!(separated, ", {name}: {ty}",)?;
+            write!(names, "{name}, ")?;
+            writeln!(fields, "            {name}: {ty},")?;
+        }
+
+        write!(w, "    pub unsafe fn {ident}(&self{separated})")?;
+        if let Some(ret) = ret {
+            let ty = stringify_type(ret, sdk).unwrap_or(Cow::from("*const ()"));
+            write!(w, " -> {ty}",)?;
+            writeln!(fields, "            out: {ty},")?;
+        }
+
+        writeln!(
+            w,
+            "{{\n        static FUNCTION: SyncLazy<Ptr<ucore::UObject<0x4D>>> = SyncLazy::new(|| ucore::UObject::get_by_index({index}));\n"
+        )?;
+        writeln!(w, "        struct Args {{\n{fields}        }}\n")?;
+
+        writeln!(
+            w,
+            "        let args = Args {{ {names}{} }};",
+            if ret.is_some() { "out: zeroed()" } else { "" }
+        )?;
+        writeln!(
+            w,
+            "        self.cast_ref::<ucore::UObject<0x4D>>().process_event(*SyncLazy::force(&FUNCTION), &args);"
+        )?;
+
+        if ret.is_some() {
+            writeln!(w, "        args.out")?;
+        }
+
+        writeln!(w, "    }}\n")?;
+    }
+
+    if !functions.borrow().is_empty() {
+        writeln!(w, "}}\n")?;
+    }
+
     Ok(())
 }
-
-// fn append_bitfield_group(&mut self, group: BitfieldGroup) -> Result<()> {
-//     Ok(())
-// }
-
-// fn end(&mut self) -> Result<()> {
-//     Ok(())
-// }
 
 fn stringify_type(kind: &PropertyKind, sdk: &Sdk) -> Option<Cow<'static, str>> {
     let repr: Cow<str> = match kind {

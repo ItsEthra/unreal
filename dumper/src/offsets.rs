@@ -8,6 +8,12 @@ pub struct Offsets {
     pub uenum: OfUEnum,
     pub ffield: OfFField,
     pub fproperty: OfFProperty,
+    pub ufunction: OfUFunction,
+}
+
+pub struct OfUFunction {
+    pub flags: usize,
+    pub func: usize,
 }
 
 pub struct OfUObject {
@@ -78,5 +84,9 @@ const DEFAULT: Offsets = Offsets {
         flags: 0x40,
         offset: 0x4C,
         size: 0x78,
+    },
+    ufunction: OfUFunction {
+        flags: 0xB0,
+        func: 0xB0 + 0x28,
     },
 };
