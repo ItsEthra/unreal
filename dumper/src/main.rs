@@ -20,20 +20,21 @@ struct Args {
     /// FNamePool offset
     #[argh(option, short = 'N')]
     names: String,
-    /// GUObjectArray offset
+    /// TUObjectArray offset
     #[argh(option, short = 'O')]
     objects: String,
     /// specifies packages to merge together in format `target:consumer`
     #[argh(option, short = 'm')]
     merge: Vec<String>,
     /// specifies fqn to trace, i.e. print detailed data
+    #[cfg(debug_assertions)]
     #[argh(option, short = 't')]
     trace: Vec<String>,
     /// do not write generated SDK to the disk
-    #[argh(switch, short = 'D')]
+    #[argh(switch, short = 'd')]
     dummy: bool,
     /// do not try to eliminate dependency cycles
-    #[argh(switch, short = 'C')]
+    #[argh(switch, short = 'c')]
     allow_cycles: bool,
     /// generate dot file with dependency graph
     #[argh(option, short = 'o')]
