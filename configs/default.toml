@@ -1,7 +1,7 @@
 Stride = 2
-# ProcessIndex will almost certainly will be wrong for you,
+# ProcessEvent will almost certainly will be wrong for you,
 # you need to find it yourself.
-ProcessIndex = 0x4D
+ProcessEvent = 0x4D
 
 [FUObjectItem]
 Size = 0x18

@@ -1,5 +1,5 @@
 Stride = 2
-ProcessIndex = 0x4D
+ProcessEvent = 0x4D
 
 [FUObjectItem]
 Size = 0x20

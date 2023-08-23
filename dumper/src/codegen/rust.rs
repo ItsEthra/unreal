@@ -360,7 +360,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     let mut funcd = NameDedup::default();
     for func in functions.borrow().iter() {
         let Function {
-            ident,
+            ident: func_ident,
             index,
             args,
             ret,
@@ -378,17 +378,21 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
             })
             .collect::<Vec<_>>()
             .join(", ");
-        write!(w, "    pub fn {}({args}) ", funcd.entry(ident))?;
+        write!(w, "    pub fn {}({args}) ", funcd.entry(func_ident))?;
 
         match ret.len() {
             0 => writeln!(w, "= {index:#X};")?,
             1 => {
                 let ty = stringify_type(&ret[0].kind, sdk, true)
                     .unwrap_or_else(|| Cow::from("*const ()"));
-                writeln!(w, "-> [{}: {ty}] = {index:#X};", argd.entry(&ret[0].name))?;
+                writeln!(
+                    w,
+                    "-> [<{ident}_{func_ident}Result> {}: {ty}] = {index:#X};",
+                    argd.entry(&ret[0].name)
+                )?;
             }
             _ => {
-                write!(w, "-> [")?;
+                write!(w, "-> [<{ident}_{func_ident}Result> ")?;
                 for (i, arg) in ret.iter().enumerate() {
                     let ty = stringify_type(&ret[0].kind, sdk, true)
                         .unwrap_or_else(|| Cow::from("*const ()"));

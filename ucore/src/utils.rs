@@ -21,26 +21,47 @@ macro_rules! assert_size {
     };
 }
 
+struct Shit;
+crate::impl_uobject_like!(Shit, 0x4D, 0x4D);
+crate::impl_process_event_fns! {
+    [Shit, 0x4D],
+
+    pub fn GetElementHandles(ElementList: i32, BaseInterfaceType: *mut i32) -> [<GetElementHandlesResult> Size: i32, Width: i32] = 0x2FA1;
+}
+
 #[macro_export]
 macro_rules! impl_process_event_fns {
     { @retty } => { () };
-    { @retty $ty:ty } => { $ty };
-    { @retty $($ty:ty)* } => { ($($ty),*) };
+    { @retty $ret_struct:ty; $ret_ty:ty } => { $ret_ty };
+    { @retty $ret_struct:ty; $($ret_ty:ty)* } => { $ret_struct };
 
-    { @retval $args:ident } => { () };
-    { @retval $args:ident $name:ident } => { $args.$name };
-    { @retval $args:ident $($name:ident)* } => { ($($args.$name),*) };
+    { @retval $args:ident } => { };
+    { @retval $args:ident $ret_struct:ident $ret_name:ident } => { return $args.$ret_name; };
+    { @retval $args:ident $ret_struct:ident $($ret_name:ident)*} => {
+        return $ret_struct {
+            $($ret_name: $args.$ret_name,)*
+        };
+    };
 
     {
         [$target:ident, $peidx:expr],
         $(
-            $vis:vis fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [$($ret_name:ident: $ret_ty:ty),* $(,)?])? = $index:expr
+            $vis:vis fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $index:expr
         );* $(;)?
     } => {
+        $(
+            $(
+                #[allow(dead_code, non_snake_case)]
+                pub struct $ret_struct {
+                    $(pub $ret_name: $ret_ty,)*
+                }
+            )?
+        )*
+
         impl $target {
             $(
-                #[allow(non_snake_case)]
-                $vis fn $name(&mut self, $($arg_name: $arg_ty),*) -> crate::impl_process_event_fns!( @retty $( $($ret_ty)* )? ) {
+                #[allow(dead_code, non_snake_case)]
+                $vis fn $name(&mut self, $($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!( @retty $( $ret_struct; $($ret_ty)* )? ) {
                     static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
 
                     unsafe {
@@ -51,18 +72,19 @@ macro_rules! impl_process_event_fns {
 
                     #[repr(C)]
                     struct Args {
-                        $($arg_name: $arg_ty,)*
-                        $( $($ret_name: $ret_ty,)* )?
+                        $( $arg_name: $arg_ty, )*
+                        $( $( $ret_name: $ret_ty, )* )?
                     }
 
                     unsafe {
                         let mut args = Args {
                             $($arg_name,)*
-                            $( $($ret_name: zeroed(),)* )?
+                            $( $($ret_name: std::mem::zeroed(),)* )?
                         };
                         let mut object = <Self as $crate::UObjectLike<$peidx>>::as_uobject(self);
                         object.process_event(*FUNCTION.as_ref().unwrap(), &mut args);
-                        crate::impl_process_event_fns!( @retval args $( $($ret_name)* )? )
+
+                        $crate::impl_process_event_fns!( @retval args $( $ret_struct $($ret_name)* )? );
                     }
                 }
             )*
