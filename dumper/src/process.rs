@@ -42,16 +42,13 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
 
         let object = if object.is_a(fqn!("CoreUObject.Enum"))? {
             Object::Enum(index_enum(object.cast())?)
-        } else if object.is_a(fqn!("CoreUObject.ScriptStruct"))? {
+        } else if object.is_a(fqn!("CoreUObject.ScriptStruct"))?
+            || object.is_a(fqn!("CoreUObject.Class"))?
+        {
             // Code dupliation is intentional, to avoid ading wrong or empty packages.
             let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
-            Object::Struct(index_struct(object.cast(), false, foreign)?)
-        } else if object.is_a(fqn!("CoreUObject.Class"))? {
-            // Code dupliation is intentional, to avoid ading wrong or empty packages.
-            let key = sdk.retrieve_key(&outer_name);
-            let foreign = foreign_map.entry(key).or_default();
-            Object::Class(index_struct(object.cast(), true, foreign)?)
+            Object::Struct(index_struct(object.cast(), foreign)?)
         } else {
             continue;
         };
@@ -305,14 +302,27 @@ fn pick_enum_size(range: impl Iterator<Item = i64>) -> usize {
     }
 }
 
-fn index_struct(
-    ustruct_ptr: UStructPtr,
-    class: bool,
-    foreign: &mut HashSet<Fqn>,
-) -> Result<Struct> {
+fn select_prefix(ustruct: UStructPtr) -> Result<char> {
+    let child_of = |fqn: Fqn| {
+        successors(ustruct.non_null(), |s| s.super_struct().unwrap().non_null())
+            .any(|s| s.cast::<UObjectPtr>().fqn().unwrap() == fqn)
+    };
+
+    let prefix = if child_of(fqn!("Engine.Actor")) {
+        'A'
+    } else if child_of(fqn!("CoreUObject.Object")) {
+        'U'
+    } else {
+        'F'
+    };
+
+    Ok(prefix)
+}
+
+fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<Struct> {
     let fqn = ustruct_ptr.cast::<UObjectPtr>().fqn()?;
 
-    let prefix = if class { 'U' } else { 'F' };
+    let prefix = select_prefix(ustruct_ptr.cast())?;
     let ident = format!("{prefix}{}", sanitize_ident(fqn.name()));
     let index = ustruct_ptr.cast::<UObjectPtr>().index()?;
 
