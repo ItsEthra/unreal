@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use dumper::{codegen::generate_rust_sdk, DumperOptions, Offsets};
+use dumper::{codegen::generate_rust_sdk, Config, DumperOptions};
 use log::{info, warn, LevelFilter};
-use petgraph::dot::{Config, Dot};
+use petgraph::dot;
 use std::{
     collections::HashMap,
     fs,
@@ -84,7 +84,7 @@ fn main() -> Result<()> {
             path = format!("{path}.dot")
         }
 
-        let dot = Dot::with_config(&sdk.packages, &[Config::EdgeNoLabel]);
+        let dot = dot::Dot::with_config(&sdk.packages, &[dot::Config::EdgeNoLabel]);
         fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn fetch_offsets(config: &Option<String>) -> Result<Offsets> {
+fn fetch_offsets(config: &Option<String>) -> Result<Config> {
     if let Some(path) = config {
         let text = fs::read_to_string(path)?;
         let config = toml::from_str(&text)?;
@@ -111,7 +111,7 @@ fn fetch_offsets(config: &Option<String>) -> Result<Offsets> {
 
         Ok(config)
     } else {
-        Ok(Offsets::default())
+        Ok(Config::default())
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     utils::{strip_package_name, Fqn},
-    Offsets, State,
+    Config, State,
 };
 use anyhow::Result;
 use memflex::sizeof;
@@ -12,14 +12,14 @@ macro_rules! mkfn {
         pub fn $field(&self) -> Result<$kind> {
             Ok(State::get()
                 .proc
-                .read(self.0 + ($offset)(&State::get().offsets))?)
+                .read(self.0 + ($offset)(&State::get().config))?)
         }
     };
 
     ($field:ident $kind:ident, @ $offset:expr) => {
         #[allow(clippy::redundant_closure_call)]
         pub fn $field(&self) -> $kind {
-            $kind(self.0 + ($offset)(&State::get().offsets))
+            $kind(self.0 + ($offset)(&State::get().config))
         }
     };
 }
@@ -76,43 +76,43 @@ macro_rules! mkptr {
     };
 }
 
-type O = Offsets;
+type C = Config;
 
 mkptr! {
     UObjectPtr {
-        index u32: = |o: &O| o.uobject.index,
-        class UClassPtr: = |o: &O| o.uobject.class,
-        name FNamePtr: @ |o: &O| o.uobject.name,
-        outer UObjectPtr: = |o: &O| o.uobject.outer
+        index u32: = |c: &C| c.uobject.index,
+        class UClassPtr: = |c: &C| c.uobject.class,
+        name FNamePtr: @ |c: &C| c.uobject.name,
+        outer UObjectPtr: = |c: &C| c.uobject.outer
     }
     FPropertyPtr {
-        array_dim u32: = |o: &O| o.fproperty.array_dim,
-        element_size u32: = |o: &O| o.fproperty.element_size,
-        flags PropertyFlags: = |o: &O| o.fproperty.flags,
-        offset u32: = |o: &O| o.fproperty.offset,
-        size u32: = |o: &O| o.fproperty.size,
+        array_dim u32: = |c: &C| c.fproperty.array_dim,
+        element_size u32: = |c: &C| c.fproperty.element_size,
+        flags PropertyFlags: = |c: &C| c.fproperty.flags,
+        offset u32: = |c: &C| c.fproperty.offset,
+        size u32: = |c: &C| c.fproperty.size,
     }
     FBoolProperty {
-        vars BoolVars: = |o: &O| o.fproperty.size,
+        vars BoolVars: = |c: &C| c.fproperty.size,
     }
     UFunctionPtr {
-        flags FunctionFlags: = |o: &O| o.ufunction.flags,
-        func usize: = |o: &O| o.ufunction.func,
+        flags FunctionFlags: = |c: &C| c.ufunction.flags,
+        func usize: = |c: &C| c.ufunction.func,
     }
     FFieldPtr {
-        class FFieldClassPtr: = |o: &O| o.ffield.class,
-        name FNamePtr: @ |o: &O| o.ffield.name,
-        next FFieldPtr: = |o: &O| o.ffield.next
+        class FFieldClassPtr: = |c: &C| c.ffield.class,
+        name FNamePtr: @ |c: &C| c.ffield.name,
+        next FFieldPtr: = |c: &C| c.ffield.next
     }
     FFieldClassPtr {
         name FNamePtr: @ |_| 0
     }
     UStructPtr {
-        super_struct UStructPtr: = |o: &O| o.ustruct.super_struct,
-        // children UFieldPtr: = |o: &O| o.ustruct.children,
-        children_props FFieldPtr: = |o: &O| o.ustruct.children_props,
-        props_size u32: = |o: &O| o.ustruct.props_size,
-        min_align u32: = |o: &O| o.ustruct.props_size + sizeof!(u32),
+        super_struct UStructPtr: = |c: &C| c.ustruct.super_struct,
+        // children UFieldPtr: = |c: &C| c.ustruct.children,
+        children_props FFieldPtr: = |c: &C| c.ustruct.children_props,
+        props_size u32: = |c: &C| c.ustruct.props_size,
+        min_align u32: = |c: &C| c.ustruct.props_size + sizeof!(u32),
     }
     UClassPtr {}
     UEnumPtr { }
@@ -121,7 +121,11 @@ mkptr! {
 
 impl UEnumPtr {
     pub fn names(&self) -> Result<TArray> {
-        let State { proc, offsets, .. } = State::get();
+        let State {
+            proc,
+            config: offsets,
+            ..
+        } = State::get();
         Ok(proc.read::<TArray>(self.0 + offsets.uenum.names)?)
     }
 }

@@ -31,7 +31,11 @@ pub(crate) fn dump_objects() -> Result<Vec<UObjectPtr>> {
 }
 
 fn get_nth_object(array: usize, idx: usize) -> Result<Option<UObjectPtr>> {
-    let State { proc, offsets, .. } = State::get();
+    let State {
+        proc,
+        config: offsets,
+        ..
+    } = State::get();
 
     let chunk_id = idx / NUM_ELEMENTS_PER_CHUNK;
     let chunk = proc.read::<usize>(array + chunk_id * sizeof!(usize))?;

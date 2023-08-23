@@ -2,6 +2,7 @@ use crate::{
     fqn,
     sdk::{Enum, Field, FieldOptions, Function, Object, Package, PropertyKind, Sdk, Struct},
     utils::Bitfield,
+    State,
 };
 use anyhow::Result;
 use petgraph::Direction::Outgoing;
@@ -93,12 +94,16 @@ fn generate_package(pkg: &Package, crates: &Path, sdk: &Sdk) -> Result<()> {
 use ucore::{Ptr, TArray, TSet, TMap, FString, FName, SyncLazy, impl_uobject_like, impl_process_event_fns};
 use std::{ptr::NonNull, mem::zeroed};
 
-type UObject = ucore::UObject<0x4D>;
+type UObject = ucore::UObject<%>;
 
 "#;
 
     let mut lib = BufWriter::new(opts.open(folder.join(format!("{}.rs", pkg.ident)))?);
-    lib.write_all(PRELUDE.as_bytes())?;
+    lib.write_all(
+        PRELUDE
+            .replace('%', &format!("{:#X}", State::get().config.process_event))
+            .as_bytes(),
+    )?;
 
     for dep in sdk
         .packages
@@ -329,8 +334,14 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         )?;
     }
 
+    let config = &State::get().config;
+
     writeln!(w, "    }}\n}}")?;
-    writeln!(w, "impl_uobject_like!({ident}, 0x4D, {index});\n")?;
+    writeln!(
+        w,
+        "impl_uobject_like!({ident}, {:#X}, {index});\n",
+        config.process_event
+    )?;
 
     if !bitfields.is_empty() {
         writeln!(w, "memflex::bitfields! {{")?;
@@ -339,7 +350,11 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     }
 
     if !functions.borrow().is_empty() {
-        writeln!(w, "impl_process_event_fns! {{\n    [{ident}, 0x4D],\n")?;
+        writeln!(
+            w,
+            "impl_process_event_fns! {{\n    [{ident}, {:#X}],\n",
+            config.process_event
+        )?;
     }
 
     let mut funcd = NameDedup::default();

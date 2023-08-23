@@ -27,7 +27,7 @@ pub(crate) fn dump_names() -> Result<NamePool> {
         options,
         proc,
         base,
-        offsets,
+        config: offsets,
         ..
     } = State::get();
 

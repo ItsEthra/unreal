@@ -2,8 +2,9 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Offsets {
+pub struct Config {
     pub stride: u32,
+    pub process_event: u32,
 
     #[serde(rename = "FUObjectItem")]
     pub fuobject_item: OfFUObjectItem,
@@ -23,7 +24,7 @@ pub struct Offsets {
     pub ufunction: OfUFunction,
 }
 
-impl Default for Offsets {
+impl Default for Config {
     fn default() -> Self {
         DEFAULT
     }
@@ -90,8 +91,9 @@ pub struct OfFProperty {
     pub size: usize,
 }
 
-const DEFAULT: Offsets = Offsets {
+const DEFAULT: Config = Config {
     stride: 2,
+    process_event: 0x4D,
     fuobject_item: OfFUObjectItem { size: 0x18 },
     uobject: OfUObject {
         index: 0xC,

@@ -16,8 +16,8 @@ mod process;
 mod sdk;
 mod utils;
 
-mod offsets;
-pub use offsets::Offsets;
+mod config;
+pub use config::Config;
 
 pub struct DumperOptions {
     pub process_id: u32,
@@ -28,7 +28,7 @@ pub struct DumperOptions {
     pub allow_cycles: bool,
 }
 
-pub fn run(options: DumperOptions, offsets: Offsets) -> Result<Sdk> {
+pub fn run(options: DumperOptions, offsets: Config) -> Result<Sdk> {
     #[cfg(windows)]
     use memflex::types::win::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 
@@ -50,7 +50,7 @@ pub fn run(options: DumperOptions, offsets: Offsets) -> Result<Sdk> {
     let state = State {
         base: module.base as usize,
         names: OnceLock::new(),
-        offsets,
+        config: offsets,
         options,
         proc,
     };
@@ -69,7 +69,7 @@ static STATE: OnceLock<State> = OnceLock::new();
 struct State {
     options: DumperOptions,
     proc: OwnedProcess,
-    offsets: Offsets,
+    config: Config,
     base: usize,
     names: OnceLock<NamePool>,
 }
