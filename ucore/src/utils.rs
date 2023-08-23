@@ -34,13 +34,13 @@ macro_rules! impl_process_event_fns {
     {
         [$target:ident, $peidx:expr],
         $(
-            fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [$($ret_name:ident: $ret_ty:ty),* $(,)?])? = $index:expr
+            $vis:vis fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [$($ret_name:ident: $ret_ty:ty),* $(,)?])? = $index:expr
         );* $(;)?
     } => {
         impl $target {
             $(
                 #[allow(non_snake_case)]
-                fn $name(&self, $($arg_name: $arg_ty),*) -> crate::impl_process_event_fns!( @retty $( $($ret_ty)* )? ) {
+                $vis fn $name(&self, $($arg_name: $arg_ty),*) -> crate::impl_process_event_fns!( @retty $( $($ret_ty)* )? ) {
                     static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
 
                     unsafe {

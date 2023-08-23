@@ -308,7 +308,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                 for Bitfield { name, offset, len } in &group.items {
                     writeln!(
                         bitfields,
-                        "        {name}: {offset}..={},",
+                        "        pub {name}: {offset}..={},",
                         *offset + *len - 1
                     )?;
                 }
@@ -342,6 +342,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         writeln!(w, "impl_process_event_fns! {{\n    [{ident}, 0x4D],\n")?;
     }
 
+    let mut funcd = NameDedup::default();
     for func in functions.borrow().iter() {
         let Function {
             ident,
@@ -350,26 +351,26 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
             ret,
         } = func;
 
-        let mut dedup = NameDedup::default();
+        let mut argd = NameDedup::default();
         let args = args
             .iter()
             .map(|arg| {
                 format!(
                     "{}: {}",
-                    dedup.entry(&arg.name),
+                    argd.entry(&arg.name),
                     stringify_type(&arg.kind, sdk, true).unwrap_or_else(|| Cow::from("*const ()"))
                 )
             })
             .collect::<Vec<_>>()
             .join(", ");
-        write!(w, "    fn {ident}({args}) ")?;
+        write!(w, "    pub fn {}({args}) ", funcd.entry(ident))?;
 
         match ret.len() {
             0 => writeln!(w, "= {index:#X};")?,
             1 => {
                 let ty = stringify_type(&ret[0].kind, sdk, true)
                     .unwrap_or_else(|| Cow::from("*const ()"));
-                writeln!(w, "-> [{}: {ty}] = {index:#X};", dedup.entry(&ret[0].name))?;
+                writeln!(w, "-> [{}: {ty}] = {index:#X};", argd.entry(&ret[0].name))?;
             }
             _ => {
                 write!(w, "-> [")?;
@@ -379,7 +380,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                     write!(
                         w,
                         "{}: {}{}",
-                        dedup.entry(&arg.name),
+                        argd.entry(&arg.name),
                         ty,
                         if i == ret.len() - 1 { "" } else { ", " }
                     )?;
