@@ -166,11 +166,11 @@ impl<const PEIDX: usize> UObject<PEIDX> {
         self.name
     }
 
-    pub unsafe fn process_event<Args>(&self, function: Ptr<Self>, args: *const Args) {
+    pub unsafe fn process_event<Args>(&mut self, function: Ptr<Self>, args: *mut Args) {
         self.vmt
-            .cast::<fn(Ptr<Self>, *const Args)>()
+            .cast::<extern "C" fn(&mut Self, Ptr<Self>, *mut Args)>()
             .add(PEIDX)
-            .read()(function, args);
+            .read()(self, function, args);
     }
 }
 

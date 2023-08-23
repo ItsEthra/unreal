@@ -40,7 +40,7 @@ macro_rules! impl_process_event_fns {
         impl $target {
             $(
                 #[allow(non_snake_case)]
-                $vis fn $name(&self, $($arg_name: $arg_ty),*) -> crate::impl_process_event_fns!( @retty $( $($ret_ty)* )? ) {
+                $vis fn $name(&mut self, $($arg_name: $arg_ty),*) -> crate::impl_process_event_fns!( @retty $( $($ret_ty)* )? ) {
                     static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
 
                     unsafe {
@@ -56,12 +56,12 @@ macro_rules! impl_process_event_fns {
                     }
 
                     unsafe {
-                        let args = Args {
+                        let mut args = Args {
                             $($arg_name,)*
                             $( $($ret_name: zeroed(),)* )?
                         };
-                        let object = <Self as $crate::UObjectLike<$peidx>>::as_uobject(self);
-                        object.process_event(*FUNCTION.as_ref().unwrap(), &args);
+                        let mut object = <Self as $crate::UObjectLike<$peidx>>::as_uobject(self);
+                        object.process_event(*FUNCTION.as_ref().unwrap(), &mut args);
                         crate::impl_process_event_fns!( @retval args $( $($ret_name)* )? )
                     }
                 }
