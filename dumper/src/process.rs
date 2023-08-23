@@ -242,7 +242,7 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
         let flags = property.flags()?;
 
         let arg = FunctionArg { name, kind, flags };
-        if flags.contains(PropertyFlags::ReturnParm) {
+        if flags.contains(PropertyFlags::OutParm) {
             ret.push(arg);
         } else {
             args.push(arg)
@@ -343,9 +343,9 @@ fn index_struct(
     if cfg!(debug_assertions) && fqn == fqn!("Engine.Level") {
         ustruct.fields.push(Field::Property {
             name: "Actors".into(),
-            kind: PropertyKind::Vec(PropertyKind::Inline(fqn!("Engine.Actor")).into()),
+            kind: PropertyKind::Vec(PropertyKind::Ptr(fqn!("Engine.Actor")).into()),
             options: FieldOptions {
-                offset: 0x78,
+                offset: 0xA8,
                 elem_size: 0x10,
                 array_dim: 1,
             },
@@ -390,6 +390,8 @@ fn index_struct(
         };
         ustruct.fields.push(field);
     }
+
+    ustruct.fields.sort_by_key(|f| f.offset());
 
     Ok(ustruct)
 }

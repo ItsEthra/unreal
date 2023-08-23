@@ -141,18 +141,27 @@ impl<const PEIDX: usize> UObject<PEIDX> {
             .unwrap()
     }
 
+    #[inline]
     pub fn flags(&self) -> ObjectFlags {
         self.flags
     }
 
+    #[inline]
     pub fn index(&self) -> u32 {
         self.index
     }
 
+    #[inline]
+    pub fn outer(&self) -> Option<Ptr<Self>> {
+        self.outer
+    }
+
+    #[inline]
     pub fn class(&self) -> Ptr<UClass<PEIDX>> {
         self.class
     }
 
+    #[inline]
     pub fn name(&self) -> FName {
         self.name
     }
