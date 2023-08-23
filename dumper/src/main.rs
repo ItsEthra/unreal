@@ -26,19 +26,21 @@ struct Args {
     /// specifies packages to merge together in format `target:consumer`
     #[argh(option, short = 'm')]
     merge: Vec<String>,
-    /// specifies fqn to trace, i.e. print detailed data
-    #[cfg(debug_assertions)]
-    #[argh(option, short = 't')]
-    trace: Vec<String>,
     /// do not write generated SDK to the disk
     #[argh(switch, short = 'd')]
     dummy: bool,
     /// do not try to eliminate dependency cycles
-    #[argh(switch, short = 'c')]
+    #[argh(switch, short = 'b')]
     allow_cycles: bool,
     /// generate dot file with dependency graph
-    #[argh(option, short = 'o')]
+    #[argh(option, short = 'g')]
     dot: Option<String>,
+    /// output folder for the generated SDK
+    #[argh(option, short = 'o')]
+    output: Option<String>,
+    /// config file path
+    #[argh(option, short = 'c')]
+    config: Option<String>,
 }
 
 fn parse_hex_arg(arg: &str) -> Result<usize> {
@@ -47,15 +49,11 @@ fn parse_hex_arg(arg: &str) -> Result<usize> {
 
 fn main() -> Result<()> {
     #[cfg(not(debug_assertions))]
-    let mut filter = LevelFilter::Info;
+    let filter = LevelFilter::Info;
     #[cfg(debug_assertions)]
-    let mut filter = LevelFilter::Debug;
+    let filter = LevelFilter::Debug;
 
     let args = argh::from_env::<Args>();
-    if !args.trace.is_empty() {
-        filter = LevelFilter::Trace;
-    }
-
     env_logger::builder()
         .format_target(false)
         .filter_level(filter)
@@ -67,35 +65,18 @@ fn main() -> Result<()> {
         sleep(Duration::from_millis(1000));
     }
 
-    let trace = args
-        .trace
-        .iter()
-        .flat_map(|s| s.split(','))
-        .map(|s| s.to_owned())
-        .collect::<Vec<String>>();
-
-    let merge = args
-        .merge
-        .iter()
-        .flat_map(|v| v.split(','))
-        .map(|v| {
-            v.split_once(':')
-                .map(|(a, b)| (a.into(), b.into()))
-                .context("Invalid merge argument")
-        })
-        .collect::<Result<HashMap<_, _>>>()?;
-
     let options = DumperOptions {
-        names: parse_hex_arg(&args.names)?,
         objects: parse_hex_arg(&args.objects)?,
+        names: parse_hex_arg(&args.names)?,
+        merge: parse_merge_args(&args.merge)?,
         allow_cycles: args.allow_cycles,
         process_id: args.pid,
-        merge,
-        trace,
     };
 
+    let offsets = fetch_offsets(&args.config)?;
+
     let start = Instant::now();
-    let sdk = dumper::run(options, Offsets::DEFAULT)?;
+    let sdk = dumper::run(options, offsets)?;
     info!("Dumper finished in {:.2?}", start.elapsed());
 
     if let Some(mut path) = args.dot {
@@ -110,13 +91,38 @@ fn main() -> Result<()> {
             .truncate(true)
             .open(&path)?
             .write_all(format!("{dot:?}").as_bytes())?;
+        info!("Saved dependency graph file as {path}");
     }
 
     if !args.dummy {
         let start = Instant::now();
-        generate_rust_sdk("./usdk", &sdk)?;
+        generate_rust_sdk(args.output.unwrap_or("usdk".into()), &sdk)?;
         info!("Sdk generation finished in {:.2?}", start.elapsed());
     }
 
     Ok(())
+}
+
+fn fetch_offsets(config: &Option<String>) -> Result<Offsets> {
+    if let Some(path) = config {
+        let text = fs::read_to_string(path)?;
+        let config = toml::from_str(&text)?;
+        info!("Loaded config file from {path}");
+
+        Ok(config)
+    } else {
+        Ok(Offsets::default())
+    }
+}
+
+fn parse_merge_args(merge: &[String]) -> Result<HashMap<String, String>> {
+    Ok(merge
+        .iter()
+        .flat_map(|v| v.split(','))
+        .map(|v| {
+            v.split_once(':')
+                .map(|(a, b)| (a.into(), b.into()))
+                .context("Invalid merge argument")
+        })
+        .collect::<Result<HashMap<_, _>>>()?)
 }

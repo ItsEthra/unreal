@@ -1,0 +1,37 @@
+Stride = 2
+
+[FUObjectItem]
+Size = 0x18
+
+[UObject]
+Index = 0x0C
+Class = 0x10
+Name = 0x18
+Outer = 0x20
+
+[UField]
+Next = 0x28
+
+[UStruct]
+SuperStruct = 0x40
+ChildrenProps = 0x50
+PropsSize = 0x58
+
+[UEnum]
+Names = 0x40
+
+[FField]
+Class = 0x08
+Next = 0x20
+Name = 0x28
+
+[FProperty]
+ArrayDim = 0x38
+ElementSize = 0x3C
+Flags = 0x40
+Offset = 0x4C
+Size = 0x78
+
+[UFunction]
+Flags = 0xB0
+Func = 0xD8

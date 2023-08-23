@@ -1,6 +1,6 @@
 use crate::{engine::UObjectPtr, State};
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, info, trace};
 use memflex::sizeof;
 
 const NUM_ELEMENTS_PER_CHUNK: usize = 64 * 1024;
@@ -29,16 +29,16 @@ pub(crate) fn dump_objects() -> Result<Vec<UObjectPtr>> {
 }
 
 fn dump_chunk(array: usize, idx: usize, objects: &mut Vec<UObjectPtr>) -> Result<usize> {
-    let State { proc, .. } = State::get();
+    let State { proc, offsets, .. } = State::get();
 
     let chunk = proc.read::<usize>(array + idx * sizeof!(usize))?;
     debug!("Dumping chunk {idx} at address {chunk:#X}");
 
     let mut num_objects = 0;
     for i in 0..NUM_ELEMENTS_PER_CHUNK {
-        const FUOBJ_SIZE: usize = 0x20;
+        let ptr = proc.read::<usize>(chunk + i * offsets.fuobject_item.size)?;
+        trace!("Found UObject {ptr:#X}");
 
-        let ptr = proc.read::<usize>(chunk + i * FUOBJ_SIZE)?;
         if ptr == 0 {
             num_objects = i;
             break;

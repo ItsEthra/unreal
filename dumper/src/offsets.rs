@@ -1,21 +1,49 @@
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct Offsets {
     pub stride: u32,
-    pub fuobject_item_size: usize,
 
+    #[serde(rename = "FUObjectItem")]
+    pub fuobject_item: OfFUObjectItem,
+    #[serde(rename = "UObject")]
     pub uobject: OfUObject,
+    #[serde(rename = "UField")]
     pub ufield: OfUField,
+    #[serde(rename = "UStruct")]
     pub ustruct: OfUStruct,
+    #[serde(rename = "UEnum")]
     pub uenum: OfUEnum,
+    #[serde(rename = "FField")]
     pub ffield: OfFField,
+    #[serde(rename = "FProperty")]
     pub fproperty: OfFProperty,
+    #[serde(rename = "UFunction")]
     pub ufunction: OfUFunction,
 }
 
+impl Default for Offsets {
+    fn default() -> Self {
+        DEFAULT
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OfFUObjectItem {
+    pub size: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfUFunction {
     pub flags: usize,
     pub func: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfUObject {
     pub index: usize,
     pub class: usize,
@@ -23,10 +51,14 @@ pub struct OfUObject {
     pub outer: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfUField {
     pub next: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfUStruct {
     pub super_struct: usize,
     // pub children: usize,
@@ -34,16 +66,22 @@ pub struct OfUStruct {
     pub props_size: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfUEnum {
     pub names: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfFField {
     pub class: usize,
     pub next: usize,
     pub name: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct OfFProperty {
     pub array_dim: usize,
     pub element_size: usize,
@@ -52,13 +90,9 @@ pub struct OfFProperty {
     pub size: usize,
 }
 
-impl Offsets {
-    pub const DEFAULT: Self = DEFAULT;
-}
-
 const DEFAULT: Offsets = Offsets {
     stride: 2,
-    fuobject_item_size: 24,
+    fuobject_item: OfFUObjectItem { size: 0x18 },
     uobject: OfUObject {
         index: 0xC,
         class: 0x10,

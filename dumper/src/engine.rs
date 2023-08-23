@@ -176,7 +176,7 @@ memflex::bitflags! {
         const NetValidate = 0x80000000;
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     pub struct PropertyFlags : u64 {
         const Edit = 0x0000000000000001;
         const ConstParm = 0x0000000000000002;

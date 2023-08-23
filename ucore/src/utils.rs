@@ -1,4 +1,5 @@
 use std::{
+    fmt::{self, Debug},
     marker::PhantomData,
     ops::{Deref, DerefMut},
     ptr::NonNull,
@@ -17,6 +18,55 @@ macro_rules! assert_size {
         } else {
             ()
         };
+    };
+}
+
+#[macro_export]
+macro_rules! impl_process_event_fns {
+    { @retty } => { () };
+    { @retty $ty:ty } => { $ty };
+    { @retty $($ty:ty)* } => { ($($ty),*) };
+
+    { @retval $args:ident } => { () };
+    { @retval $args:ident $name:ident } => { $args.$name };
+    { @retval $args:ident $($name:ident)* } => { ($($args.$name),*) };
+
+    {
+        [$target:ident, $peidx:expr],
+        $(
+            fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [$($ret_name:ident: $ret_ty:ty),* $(,)?])? = $index:expr
+        );* $(;)?
+    } => {
+        impl $target {
+            $(
+                #[allow(non_snake_case)]
+                fn $name(&self, $($arg_name: $arg_ty),*) -> crate::impl_process_event_fns!( @retty $( $($ret_ty)* )? ) {
+                    static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
+
+                    unsafe {
+                        if FUNCTION.is_none() {
+                            FUNCTION = Some($crate::UObject::get_by_index($index));
+                        }
+                    }
+
+                    #[repr(C)]
+                    struct Args {
+                        $($arg_name: $arg_ty,)*
+                        $( $($ret_name: $ret_ty,)* )?
+                    }
+
+                    unsafe {
+                        let args = Args {
+                            $($arg_name,)*
+                            $( $($ret_name: zeroed(),)* )?
+                        };
+                        let object = <Self as $crate::UObjectLike<$peidx>>::as_uobject(self);
+                        object.process_event(*FUNCTION.as_ref().unwrap(), &args);
+                        crate::impl_process_event_fns!( @retval args $( $($ret_name)* )? )
+                    }
+                }
+            )*
+        }
     };
 }
 
@@ -39,9 +89,21 @@ impl<const SIZE: usize, T> DerefMut for Shrink<SIZE, T> {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Ptr<T: ?Sized>(pub NonNull<T>);
+
+impl<T: ?Sized> PartialEq for Ptr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<T: ?Sized> Eq for Ptr<T> {}
+
+impl<T: ?Sized> Ptr<T> {
+    pub fn from_ref(r: &T) -> Self {
+        unsafe { Self(NonNull::new_unchecked(r as *const T as _)) }
+    }
+}
 
 impl<T: ?Sized> Clone for Ptr<T> {
     #[inline]
@@ -53,6 +115,12 @@ impl<T: ?Sized> Copy for Ptr<T> {}
 
 unsafe impl<T: ?Sized> Send for Ptr<T> {}
 unsafe impl<T: ?Sized> Sync for Ptr<T> {}
+
+impl<T: ?Sized> Debug for Ptr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
 
 impl<T: ?Sized> From<NonNull<T>> for Ptr<T> {
     #[inline]

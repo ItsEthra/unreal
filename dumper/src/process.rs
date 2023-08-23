@@ -1,17 +1,20 @@
 use crate::{
     engine::{
-        BoolVars, FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr,
-        UObjectPtr, UStructPtr,
+        FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr, UObjectPtr,
+        UStructPtr,
     },
     fqn,
-    sdk::{Enum, Field, FieldOptions, Function, Object, Package, PropertyKind, Sdk, Struct},
+    sdk::{
+        Enum, Field, FieldOptions, Function, FunctionArg, Object, Package, PropertyKind, Sdk,
+        Struct,
+    },
     utils::{
         sanitize_ident, strip_package_name, AccumulatorResult, BitfieldAccumulator, Fqn, Layout,
     },
     State,
 };
 use anyhow::{bail, Result};
-use log::{info, trace, warn};
+use log::{info, warn};
 use memflex::sizeof;
 use petgraph::{
     graph::NodeIndex,
@@ -20,7 +23,6 @@ use petgraph::{
     Direction::{Incoming, Outgoing},
 };
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     iter::successors,
     ops::RangeInclusive,
@@ -227,7 +229,7 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
     let index = object.index()?;
 
     let mut args = vec![];
-    let mut ret: Option<PropertyKind> = None;
+    let mut ret = vec![];
 
     let ptr = object.cast::<UStructPtr>();
     for arg in successors(ptr.children_props()?.non_null(), |field| {
@@ -239,10 +241,11 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
         let kind = get_property_kind(arg, foreign)?;
         let flags = property.flags()?;
 
+        let arg = FunctionArg { name, kind, flags };
         if flags.contains(PropertyFlags::ReturnParm) {
-            ret = Some(kind);
+            ret.push(arg);
         } else {
-            args.push((name, kind))
+            args.push(arg)
         }
     }
 
@@ -311,11 +314,7 @@ fn index_struct(
 
     let prefix = if class { 'U' } else { 'F' };
     let ident = format!("{prefix}{}", sanitize_ident(fqn.name()));
-
-    let traced = State::get().options.trace.iter().any(|t| fqn.eq_str(t));
-    if traced {
-        trace!("Start Trace of {fqn} at {ustruct_ptr:?}",);
-    }
+    let index = ustruct_ptr.cast::<UObjectPtr>().index()?;
 
     let size = ustruct_ptr.props_size()? as usize;
     let align = ustruct_ptr.min_align()? as usize;
@@ -336,9 +335,22 @@ fn index_struct(
         fields: vec![],
         parent,
         ident,
+        index,
         fqn,
     };
     let mut accumulator = BitfieldAccumulator::default();
+
+    if cfg!(debug_assertions) && fqn == fqn!("Engine.Level") {
+        ustruct.fields.push(Field::Property {
+            name: "Actors".into(),
+            kind: PropertyKind::Vec(PropertyKind::Inline(fqn!("Engine.Actor")).into()),
+            options: FieldOptions {
+                offset: 0x78,
+                elem_size: 0x10,
+                array_dim: 1,
+            },
+        })
+    }
 
     for field in successors(ustruct_ptr.children_props()?.non_null(), |field| {
         field.next().unwrap().non_null()
@@ -357,28 +369,7 @@ fn index_struct(
             assert_eq!(vars.field_size, 1);
         }
 
-        if traced {
-            let classname = field.class()?.name().get()?;
-            let bitinfo: Cow<str> = if matches!(kind, PropertyKind::Bool) {
-                let BoolVars {
-                    field_size,
-                    byte_offset,
-                    byte_mask,
-                    field_mask,
-                } = fproperty.cast::<FBoolProperty>().vars()?;
-                format!("\nField Size = {field_size}\nByte Offset = {byte_offset}\nByte Mask = {byte_mask:08b}\nField Mask = {field_mask:08b}").into()
-            } else {
-                "".into()
-            };
-
-            trace!("  Field {name}:\nKind = {kind:?}\nClassname = {classname}\nOffset = {offset:#X}\nArray dim = {array_dim:#X}\nElem size = {elem_size:#X}{bitinfo}");
-        }
         let acc_result = accumulator.accumulate(&name, fproperty, &kind, offset)?;
-
-        if traced {
-            trace!("  Acc Result: {acc_result:#?}");
-        }
-
         match acc_result {
             AccumulatorResult::Skip => continue,
             AccumulatorResult::Append(groups) => {
@@ -398,10 +389,6 @@ fn index_struct(
             },
         };
         ustruct.fields.push(field);
-    }
-
-    if traced {
-        trace!("End Trace of {fqn}");
     }
 
     Ok(ustruct)

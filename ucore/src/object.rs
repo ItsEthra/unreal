@@ -1,23 +1,119 @@
 use crate::{assert_size, FName, GlobalContext, Ptr};
 use bitflags::bitflags;
-use std::ptr::NonNull;
+use memflex::offset_of;
+use std::{
+    iter::successors,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 pub struct FUObjectItem {
-    pub object: *const (),
+    pub object: *mut (),
     pub flags: u32,
     pub root_index: i32,
     pub serial: u32,
+    _pad: usize,
 }
-assert_size!(FUObjectItem, 0x18);
+assert_size!(FUObjectItem, 0x20);
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct FChunkedFixedUObjectArray {
-    objects: Ptr<Ptr<FUObjectItem>>,
-    preallocated: Ptr<FUObjectItem>,
-    max_elems: u32,
-    num_elems: u32,
-    max_chunks: u32,
-    num_chunks: u32,
+    pub objects: *const *const FUObjectItem,
+    pub preallocated: *const (),
+    pub max_elems: u32,
+    pub num_elems: u32,
+    pub max_chunks: u32,
+    pub num_chunks: u32,
+}
+
+impl FChunkedFixedUObjectArray {
+    pub fn iter<const PEIDX: usize>(&self) -> impl Iterator<Item = Ptr<UObject<PEIDX>>> + '_ {
+        (0..self.num_elems).flat_map(|i| self.nth(i)).fuse()
+    }
+
+    pub fn nth<const PEIDX: usize>(&self, idx: u32) -> Option<Ptr<UObject<PEIDX>>> {
+        const NUM_ELEMS_PER_CHUNK: usize = 64 * 1024;
+
+        let chunk_idx = idx as usize / NUM_ELEMS_PER_CHUNK;
+        let array = GlobalContext::get().chunked_fixed_uobject_array();
+        let item = unsafe {
+            array
+                .objects
+                .add(chunk_idx)
+                .read()
+                .add(idx as usize % NUM_ELEMS_PER_CHUNK)
+        };
+        let object = NonNull::new(unsafe { (*item).object.cast() })?;
+        Some(Ptr(object))
+    }
+}
+
+#[allow(dead_code)]
+pub struct UClass<const PEIDX: usize> {
+    object: UObject<PEIDX>,
+    next: *const (),
+    _pad_0x40: [u8; 0x10],
+    super_struct: Option<Ptr<Self>>,
+}
+const _: () = assert!(offset_of!(UClass<0>, super_struct) == 0x40);
+
+impl<const PEIDX: usize> UClass<PEIDX> {
+    pub fn is(&self, class: Ptr<Self>) -> bool {
+        successors(Some(Ptr::from_ref(self)), |class| class.super_struct).any(|ptr| ptr == class)
+    }
+}
+
+impl<const PEIDX: usize> Deref for UClass<PEIDX> {
+    type Target = UObject<PEIDX>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.object
+    }
+}
+
+impl<const PEIDX: usize> DerefMut for UClass<PEIDX> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.object
+    }
+}
+
+pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
+    const INDEX: u32;
+
+    fn static_class() -> Ptr<UClass<PEIDX>> {
+        let object = UObject::<PEIDX>::get_by_index(Self::INDEX);
+        Ptr(object.0.cast::<UClass<PEIDX>>())
+    }
+
+    fn is<T: UObjectLike<PEIDX>>(&self) -> bool {
+        self.as_uobject().class.is(T::static_class())
+    }
+
+    fn from_uobject(object: Ptr<UObject<PEIDX>>) -> Option<Ptr<Self>> {
+        if object.class.is(Self::static_class()) {
+            Some(Ptr(object.0.cast::<Self>()))
+        } else {
+            None
+        }
+    }
+
+    fn as_uobject(&self) -> Ptr<UObject<PEIDX>> {
+        unsafe {
+            Ptr(NonNull::new_unchecked(
+                (self as *const Self).cast::<UObject<PEIDX>>().cast_mut(),
+            ))
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! impl_uobject_like {
+    ($target:ty, $peidx:expr, $idx:expr) => {
+        unsafe impl $crate::UObjectLike<{ $peidx }> for $target {
+            const INDEX: u32 = $idx;
+        }
+    };
 }
 
 // PEIDX = Process Event Index
@@ -26,7 +122,7 @@ pub struct UObject<const PEIDX: usize> {
     vmt: *const (),
     flags: ObjectFlags,
     index: u32,
-    class: Ptr<Self>,
+    class: Ptr<UClass<PEIDX>>,
     name: FName,
     outer: Option<Ptr<Self>>,
 }
@@ -38,15 +134,11 @@ unsafe impl<const PEIDX: usize> Send for UObject<PEIDX> {}
 unsafe impl<const PEIDX: usize> Sync for UObject<PEIDX> {}
 
 impl<const PEIDX: usize> UObject<PEIDX> {
-    pub fn get_by_index(idx: usize) -> Ptr<Self> {
-        const NUM_ELEMS_PER_CHUNK: usize = 64 * 1024;
-
-        let chunk_idx = idx / NUM_ELEMS_PER_CHUNK;
-        let array = GlobalContext::get().chunked_fixed_uobject_array();
-        let chunk = unsafe { array.objects.0.as_ptr().add(chunk_idx).read() };
-        let objitem = unsafe { chunk.0.as_ptr().add(idx % NUM_ELEMS_PER_CHUNK) };
-        let object = NonNull::new(unsafe { (*objitem).object.cast_mut().cast() }).unwrap();
-        Ptr(object)
+    pub fn get_by_index(idx: u32) -> Ptr<Self> {
+        GlobalContext::get()
+            .chunked_fixed_uobject_array()
+            .nth(idx)
+            .unwrap()
     }
 
     pub fn flags(&self) -> ObjectFlags {
@@ -57,7 +149,7 @@ impl<const PEIDX: usize> UObject<PEIDX> {
         self.index
     }
 
-    pub fn class(&self) -> Ptr<Self> {
+    pub fn class(&self) -> Ptr<UClass<PEIDX>> {
         self.class
     }
 

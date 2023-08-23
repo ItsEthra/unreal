@@ -1,7 +1,7 @@
 use crate::GlobalContext;
 use std::{
     borrow::Cow,
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     marker::PhantomData,
     mem::size_of,
     str::from_utf8_unchecked,
@@ -145,10 +145,10 @@ impl FNamePool {
         unsafe {
             (self as *const Self)
                 .cast::<u8>()
-                .add(size_of::<usize>() * (2 + block as usize))
+                .add(0x10 + size_of::<usize>() * block as usize)
                 .cast::<*const u8>()
-                .read_volatile()
-                .add(offset as usize)
+                .read()
+                .add(offset as usize * 2)
                 .cast::<FNameEntry>()
                 .as_ref()
                 .unwrap()
@@ -174,5 +174,11 @@ impl Display for FName {
             .to_str();
 
         write!(f, "{text}")
+    }
+}
+
+impl Debug for FName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
     }
 }

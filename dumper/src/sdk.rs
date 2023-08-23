@@ -1,4 +1,5 @@
 use crate::{
+    engine::PropertyFlags,
     utils::{BitfieldGroup, Fqn, Layout},
     State,
 };
@@ -127,6 +128,7 @@ pub struct Enum {
 #[derive(Debug)]
 pub struct Struct {
     pub fqn: Fqn,
+    pub index: u32,
     pub parent: Option<Fqn>,
     pub ident: String,
     pub shrink: Cell<Option<usize>>,
@@ -139,8 +141,15 @@ pub struct Struct {
 pub struct Function {
     pub ident: String,
     pub index: u32,
-    pub args: Vec<(String, PropertyKind)>,
-    pub ret: Option<PropertyKind>,
+    pub args: Vec<FunctionArg>,
+    pub ret: Vec<FunctionArg>,
+}
+
+#[derive(Debug)]
+pub struct FunctionArg {
+    pub name: String,
+    pub kind: PropertyKind,
+    pub flags: PropertyFlags,
 }
 
 #[derive(Debug)]

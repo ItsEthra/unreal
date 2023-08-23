@@ -1,8 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use memflex::{
-    external::{open_process_by_id, OwnedProcess},
-    types::win::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
-};
+use memflex::external::OwnedProcess;
 use names::NamePool;
 use sdk::Sdk;
 use std::{collections::HashMap, sync::OnceLock};
@@ -28,17 +25,22 @@ pub struct DumperOptions {
     pub objects: usize,
     /// Options to merge two packages together to avoid cyclic dependencies
     pub merge: HashMap<String, String>,
-    /// FQNs to trace
-    pub trace: Vec<String>,
     pub allow_cycles: bool,
 }
 
 pub fn run(options: DumperOptions, offsets: Offsets) -> Result<Sdk> {
-    let proc = open_process_by_id(
+    #[cfg(windows)]
+    use memflex::types::win::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+
+    #[cfg(windows)]
+    let proc = memflex::external::open_process_by_id(
         options.process_id,
         false,
         PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
     )?;
+
+    #[cfg(unix)]
+    let proc = memflex::external::find_process_by_id(options.process_id)?;
 
     let module = proc
         .modules()?

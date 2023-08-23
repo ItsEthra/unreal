@@ -82,8 +82,7 @@ fn generate_package(pkg: &Package, crates: &Path, sdk: &Sdk) -> Result<()> {
         .truncate(true)
         .clone();
 
-    const PRELUDE: &str = r#"
-#![allow(
+    const PRELUDE: &str = r#"#![allow(
     non_snake_case,
     non_camel_case_types,
     non_upper_case_globals,
@@ -91,7 +90,7 @@ fn generate_package(pkg: &Package, crates: &Path, sdk: &Sdk) -> Result<()> {
     dead_code
 )]
 
-use ucore::{Ptr, TArray, TSet, TMap, FString, FName, SyncLazy};
+use ucore::{Ptr, TArray, TSet, TMap, FString, FName, SyncLazy, impl_uobject_like, impl_process_event_fns};
 use std::{ptr::NonNull, mem::zeroed};
 
 type UObject = ucore::UObject<0x4D>;
@@ -196,6 +195,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         fields,
         shrink,
         functions,
+        index,
     } = ustruct;
 
     if *fqn == fqn!("CoreUObject.Object") {
@@ -261,7 +261,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                         array_dim,
                     },
             } => {
-                let Some(repr) = stringify_type(kind, sdk) else {
+                let Some(repr) = stringify_type(kind, sdk, false) else {
                     continue;
                 };
 
@@ -276,17 +276,11 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                     offset = *field_offset;
                 }
 
-                let idx = dedup.dedup(name);
-                match idx {
-                    1 => writeln!(
-                        w,
-                        "        pub {name}: {repr}, // {offset:#X}({total_size:#X})"
-                    )?,
-                    _ => writeln!(
-                        w,
-                        "        pub {name}_{idx}: {repr}, // {offset:#X}({total_size:#X})"
-                    )?,
-                }
+                writeln!(
+                    w,
+                    "        pub {}: {repr}, // {offset:#X}({total_size:#X})",
+                    dedup.entry(name)
+                )?;
 
                 offset += total_size;
             }
@@ -335,7 +329,8 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         )?;
     }
 
-    writeln!(w, "    }}\n}}\n")?;
+    writeln!(w, "    }}\n}}")?;
+    writeln!(w, "impl_uobject_like!({ident}, 0x4D, {index});\n")?;
 
     if !bitfields.is_empty() {
         writeln!(w, "memflex::bitfields! {{")?;
@@ -344,7 +339,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     }
 
     if !functions.borrow().is_empty() {
-        writeln!(w, "impl {ident} {{")?;
+        writeln!(w, "impl_process_event_fns! {{\n    [{ident}, 0x4D],\n")?;
     }
 
     for func in functions.borrow().iter() {
@@ -355,51 +350,43 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
             ret,
         } = func;
 
-        let mut separated: String = "".into();
-        let mut names: String = "".into();
-        let mut fields: String = "".into();
-
         let mut dedup = NameDedup::default();
-        for (name, kind) in args {
-            let ty = stringify_type(kind, sdk).unwrap_or(Cow::from("*const ()"));
-            let i = dedup.dedup(name);
-            let name = match i {
-                1 => Cow::from(name),
-                _ => Cow::from(format!("{name}_{i}")),
-            };
-            write!(separated, ", {name}: {ty}",)?;
-            write!(names, "{name}, ")?;
-            writeln!(fields, "            {name}: {ty},")?;
+        let args = args
+            .iter()
+            .map(|arg| {
+                format!(
+                    "{}: {}",
+                    dedup.entry(&arg.name),
+                    stringify_type(&arg.kind, sdk, true).unwrap_or_else(|| Cow::from("*const ()"))
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(w, "    fn {ident}({args}) ")?;
+
+        match ret.len() {
+            0 => writeln!(w, "= {index:#X};")?,
+            1 => {
+                let ty = stringify_type(&ret[0].kind, sdk, true)
+                    .unwrap_or_else(|| Cow::from("*const ()"));
+                writeln!(w, "-> [{}: {ty}] = {index:#X};", dedup.entry(&ret[0].name))?;
+            }
+            _ => {
+                write!(w, "-> [")?;
+                for (i, arg) in ret.iter().enumerate() {
+                    let ty = stringify_type(&ret[0].kind, sdk, true)
+                        .unwrap_or_else(|| Cow::from("*const ()"));
+                    write!(
+                        w,
+                        "{}: {}{}",
+                        dedup.entry(&arg.name),
+                        ty,
+                        if i == ret.len() - 1 { "" } else { ", " }
+                    )?;
+                }
+                writeln!(w, "] = {index:#X};")?;
+            }
         }
-
-        write!(w, "    pub unsafe fn {ident}(&self{separated})")?;
-        if let Some(ret) = ret {
-            let ty = stringify_type(ret, sdk).unwrap_or(Cow::from("*const ()"));
-            write!(w, " -> {ty}",)?;
-            writeln!(fields, "            out: {ty},")?;
-        }
-
-        writeln!(
-            w,
-            "{{\n        static FUNCTION: SyncLazy<Ptr<ucore::UObject<0x4D>>> = SyncLazy::new(|| ucore::UObject::get_by_index({index}));\n"
-        )?;
-        writeln!(w, "       #[repr(C)]\n         struct Args {{\n{fields}        }}\n")?;
-
-        writeln!(
-            w,
-            "        let args = Args {{ {names}{} }};",
-            if ret.is_some() { "out: zeroed()" } else { "" }
-        )?;
-        writeln!(
-            w,
-            "        self.cast_ref::<ucore::UObject<0x4D>>().process_event(*SyncLazy::force(&FUNCTION), &args);"
-        )?;
-
-        if ret.is_some() {
-            writeln!(w, "        args.out")?;
-        }
-
-        writeln!(w, "    }}\n")?;
     }
 
     if !functions.borrow().is_empty() {
@@ -409,7 +396,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     Ok(())
 }
 
-fn stringify_type(kind: &PropertyKind, sdk: &Sdk) -> Option<Cow<'static, str>> {
+fn stringify_type(kind: &PropertyKind, sdk: &Sdk, as_ref: bool) -> Option<Cow<'static, str>> {
     let repr: Cow<str> = match kind {
         PropertyKind::Bool => "bool".into(),
         PropertyKind::Int8 => "i8".into(),
@@ -426,21 +413,27 @@ fn stringify_type(kind: &PropertyKind, sdk: &Sdk) -> Option<Cow<'static, str>> {
         PropertyKind::String => "FString".into(),
         PropertyKind::Ptr(inner) => {
             let object = sdk.lookup(inner).unwrap();
-            format!("Option<Ptr<{}>>", object.ptr.ident()).into()
+            if as_ref {
+                format!("*mut {}", object.ptr.ident()).into()
+            } else {
+                format!("Option<Ptr<{}>>", object.ptr.ident()).into()
+            }
         }
         PropertyKind::Inline(inner) => {
             let object = sdk.lookup(inner).unwrap();
             object.ptr.ident().to_owned().into()
         }
         PropertyKind::Array { kind, size } => {
-            format!("[{}; {:#X}]", stringify_type(kind, sdk)?, *size).into()
+            format!("[{}; {:#X}]", stringify_type(kind, sdk, as_ref)?, *size).into()
         }
-        PropertyKind::Vec(inner) => format!("TArray<{}>", stringify_type(inner, sdk)?).into(),
-        PropertyKind::Set(inner) => format!("TSet<{}>", stringify_type(inner, sdk)?).into(),
+        PropertyKind::Vec(inner) => {
+            format!("TArray<{}>", stringify_type(inner, sdk, as_ref)?).into()
+        }
+        PropertyKind::Set(inner) => format!("TSet<{}>", stringify_type(inner, sdk, as_ref)?).into(),
         PropertyKind::Map { key, value } => format!(
             "TMap<{}, {}>",
-            stringify_type(key, sdk)?,
-            stringify_type(value, sdk)?
+            stringify_type(key, sdk, as_ref)?,
+            stringify_type(value, sdk, as_ref)?
         )
         .into(),
         // TODO: stringify text and implement in ucore
@@ -454,7 +447,7 @@ fn stringify_type(kind: &PropertyKind, sdk: &Sdk) -> Option<Cow<'static, str>> {
 struct NameDedup(HashMap<u64, usize>);
 
 impl NameDedup {
-    fn dedup(&mut self, name: &str) -> usize {
+    fn entry<'n>(&mut self, name: &'n str) -> Cow<'n, str> {
         let mut hasher = DefaultHasher::new();
         hasher.write_usize(name.len());
         hasher.write(name.as_bytes());
@@ -462,6 +455,9 @@ impl NameDedup {
         let i = self.0.entry(hasher.finish()).or_insert(0);
         *i += 1;
 
-        *i
+        match *i {
+            1 => Cow::Borrowed(name),
+            j => Cow::Owned(format!("{name}_{j}")),
+        }
     }
 }
