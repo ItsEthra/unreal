@@ -1,5 +1,5 @@
 use crate::{
-    engine::PropertyFlags,
+    engine::{FunctionFlags, PropertyFlags},
     utils::{BitfieldGroup, Fqn, Layout},
     State,
 };
@@ -141,6 +141,7 @@ pub struct Struct {
 pub struct Function {
     pub ident: String,
     pub index: u32,
+    pub flags: FunctionFlags,
     pub args: Vec<FunctionArg>,
     pub ret: Vec<FunctionArg>,
 }

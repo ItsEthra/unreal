@@ -1,7 +1,7 @@
 use crate::{
     engine::{
-        FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr, UObjectPtr,
-        UStructPtr,
+        FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr, UFunctionPtr,
+        UObjectPtr, UStructPtr,
     },
     fqn,
     sdk::{
@@ -225,6 +225,8 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
     let ident = sanitize_ident(object.name().get()?).into_owned();
     let index = object.index()?;
 
+    let flags = object.cast::<UFunctionPtr>().flags()?;
+
     let mut args = vec![];
     let mut ret = vec![];
 
@@ -249,6 +251,7 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
     let function = Function {
         ident,
         index,
+        flags,
         args,
         ret,
     };
