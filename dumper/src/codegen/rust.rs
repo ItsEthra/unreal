@@ -1,4 +1,5 @@
 use crate::{
+    engine::PropertyFlags,
     fqn,
     sdk::{Enum, Field, FieldOptions, Function, Object, Package, PropertyKind, Sdk, Struct},
     utils::Bitfield,
@@ -266,7 +267,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                         array_dim,
                     },
             } => {
-                let Some(repr) = stringify_type(kind, sdk, false) else {
+                let Some(repr) = stringify_type(kind, sdk, PointerMode::Ptr) else {
                     continue;
                 };
 
@@ -370,10 +371,16 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         let args = args
             .iter()
             .map(|arg| {
+                let mode = if arg.flags.contains(PropertyFlags::ConstParm) {
+                    PointerMode::Const
+                } else {
+                    PointerMode::Mut
+                };
+
                 format!(
                     "{}: {}",
                     argd.entry(&arg.name),
-                    stringify_type(&arg.kind, sdk, true).unwrap_or_else(|| Cow::from("*const ()"))
+                    stringify_type(&arg.kind, sdk, mode).unwrap_or_else(|| Cow::from("*const ()"))
                 )
             })
             .collect::<Vec<_>>()
@@ -383,7 +390,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         match ret.len() {
             0 => writeln!(w, "= {index:#X};")?,
             1 => {
-                let ty = stringify_type(&ret[0].kind, sdk, true)
+                let ty = stringify_type(&ret[0].kind, sdk, PointerMode::Ptr)
                     .unwrap_or_else(|| Cow::from("*const ()"));
                 writeln!(
                     w,
@@ -394,7 +401,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
             _ => {
                 write!(w, "-> [<{ident}_{func_ident}Result> ")?;
                 for (i, arg) in ret.iter().enumerate() {
-                    let ty = stringify_type(&ret[0].kind, sdk, true)
+                    let ty = stringify_type(&arg.kind, sdk, PointerMode::Ptr)
                         .unwrap_or_else(|| Cow::from("*const ()"));
                     write!(
                         w,
@@ -416,7 +423,14 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     Ok(())
 }
 
-fn stringify_type(kind: &PropertyKind, sdk: &Sdk, as_ref: bool) -> Option<Cow<'static, str>> {
+#[derive(Clone, Copy)]
+enum PointerMode {
+    Const,
+    Mut,
+    Ptr,
+}
+
+fn stringify_type(kind: &PropertyKind, sdk: &Sdk, mode: PointerMode) -> Option<Cow<'static, str>> {
     let repr: Cow<str> = match kind {
         PropertyKind::Bool => "bool".into(),
         PropertyKind::Int8 => "i8".into(),
@@ -433,10 +447,10 @@ fn stringify_type(kind: &PropertyKind, sdk: &Sdk, as_ref: bool) -> Option<Cow<'s
         PropertyKind::String => "FString".into(),
         PropertyKind::Ptr(inner) => {
             let object = sdk.lookup(inner).unwrap();
-            if as_ref {
-                format!("*mut {}", object.ptr.ident()).into()
-            } else {
-                format!("Option<Ptr<{}>>", object.ptr.ident()).into()
+            match mode {
+                PointerMode::Const => format!("*const {}", object.ptr.ident()).into(),
+                PointerMode::Mut => format!("*mut {}", object.ptr.ident()).into(),
+                PointerMode::Ptr => format!("Option<Ptr<{}>>", object.ptr.ident()).into(),
             }
         }
         PropertyKind::Inline(inner) => {
@@ -444,16 +458,14 @@ fn stringify_type(kind: &PropertyKind, sdk: &Sdk, as_ref: bool) -> Option<Cow<'s
             object.ptr.ident().to_owned().into()
         }
         PropertyKind::Array { kind, size } => {
-            format!("[{}; {:#X}]", stringify_type(kind, sdk, as_ref)?, *size).into()
+            format!("[{}; {:#X}]", stringify_type(kind, sdk, mode)?, *size).into()
         }
-        PropertyKind::Vec(inner) => {
-            format!("TArray<{}>", stringify_type(inner, sdk, as_ref)?).into()
-        }
-        PropertyKind::Set(inner) => format!("TSet<{}>", stringify_type(inner, sdk, as_ref)?).into(),
+        PropertyKind::Vec(inner) => format!("TArray<{}>", stringify_type(inner, sdk, mode)?).into(),
+        PropertyKind::Set(inner) => format!("TSet<{}>", stringify_type(inner, sdk, mode)?).into(),
         PropertyKind::Map { key, value } => format!(
             "TMap<{}, {}>",
-            stringify_type(key, sdk, as_ref)?,
-            stringify_type(value, sdk, as_ref)?
+            stringify_type(key, sdk, mode)?,
+            stringify_type(value, sdk, mode)?
         )
         .into(),
         // TODO: stringify text and implement in ucore

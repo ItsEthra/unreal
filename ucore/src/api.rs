@@ -2,6 +2,7 @@ use std::{
     char::decode_utf16,
     fmt,
     marker::PhantomData,
+    mem::forget,
     ops::{Deref, DerefMut},
     ptr::NonNull,
     slice::{from_raw_parts, from_raw_parts_mut},
@@ -32,6 +33,37 @@ impl<T> TArray<T> {
     }
 }
 
+impl<T: fmt::Debug> fmt::Debug for TArray<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.as_slice())
+    }
+}
+
+impl<T> From<Vec<T>> for TArray<T> {
+    fn from(mut vec: Vec<T>) -> Self {
+        let (ptr, len, capacity) = (vec.as_mut_ptr(), vec.len() as u32, vec.capacity() as u32);
+        forget(vec);
+
+        Self {
+            ptr: NonNull::new(ptr),
+            capacity,
+            len,
+        }
+    }
+}
+
+impl<T> Drop for TArray<T> {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Vec::from_raw_parts(
+                self.ptr.map(|p| p.as_ptr()).unwrap_or(0 as _),
+                self.len as usize,
+                self.capacity as usize,
+            ));
+        }
+    }
+}
+
 impl<T> Deref for TArray<T> {
     type Target = [T];
 
@@ -53,6 +85,14 @@ pub struct FString {
     data: TArray<u16>,
 }
 
+impl From<String> for FString {
+    fn from(value: String) -> Self {
+        Self {
+            data: TArray::from(value.encode_utf16().collect::<Vec<_>>()),
+        }
+    }
+}
+
 impl fmt::Display for FString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for chr in decode_utf16(self.data.iter().copied()) {
@@ -63,6 +103,12 @@ impl fmt::Display for FString {
         }
 
         Ok(())
+    }
+}
+
+impl fmt::Debug for FString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
     }
 }
 

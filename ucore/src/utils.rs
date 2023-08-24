@@ -114,14 +114,26 @@ impl<const SIZE: usize, T> DerefMut for Shrink<SIZE, T> {
 #[repr(transparent)]
 pub struct Ptr<T: ?Sized>(pub NonNull<T>);
 
+impl<T: ?Sized> Copy for Ptr<T> {}
+unsafe impl<T: ?Sized> Send for Ptr<T> {}
+unsafe impl<T: ?Sized> Sync for Ptr<T> {}
+impl<T: ?Sized> Eq for Ptr<T> {}
+
 impl<T: ?Sized> PartialEq for Ptr<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
-impl<T: ?Sized> Eq for Ptr<T> {}
 
 impl<T: ?Sized> Ptr<T> {
+    pub fn cast<U>(self) -> Ptr<U> {
+        Ptr(self.0.cast::<U>())
+    }
+
+    pub fn as_ptr(&self) -> *mut T {
+        self.0.as_ptr()
+    }
+
     pub fn from_ref(r: &T) -> Self {
         unsafe { Self(NonNull::new_unchecked(r as *const T as _)) }
     }
@@ -133,10 +145,6 @@ impl<T: ?Sized> Clone for Ptr<T> {
         Self(self.0)
     }
 }
-impl<T: ?Sized> Copy for Ptr<T> {}
-
-unsafe impl<T: ?Sized> Send for Ptr<T> {}
-unsafe impl<T: ?Sized> Sync for Ptr<T> {}
 
 impl<T: ?Sized> Debug for Ptr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
