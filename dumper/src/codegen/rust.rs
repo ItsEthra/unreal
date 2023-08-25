@@ -14,6 +14,7 @@ use std::{
     fs::{self, File, OpenOptions},
     hash::Hasher,
     io::{BufWriter, Write as WriteIo},
+    iter::successors,
     path::Path,
 };
 
@@ -238,7 +239,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         writeln!(w, "    // Name = `{fqn}`, Parent = `{parent_fqn}`")?;
         writeln!(
             w,
-            "    // Inherited = {:#X}{}",
+            "    // Parent = {:#X}{}",
             parent.layout.size,
             if let Some(size) = parent.shrink.get() {
                 Cow::from(format!(", Shrunk = {size:#X}"))
@@ -246,6 +247,20 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
                 Cow::from("")
             }
         )?;
+
+        let chain = successors(Some(*parent_fqn), |fqn| {
+            let (Object::Class(parent) | Object::Struct(parent)) = &*sdk.lookup(fqn).unwrap().ptr
+            else {
+                unreachable!()
+            };
+
+            parent.parent
+        })
+        .map(|fqn| sdk.lookup(&fqn).unwrap().ptr.ident())
+        .collect::<Vec<_>>()
+        .join(" -> ");
+        writeln!(w, "    // Inheritance: {chain}")?;
+
         writeln!(w, "    pub struct {ident} : pub {} {{", &parent.ident)?;
     } else {
         writeln!(w, "    // Name = `{fqn}`")?;
