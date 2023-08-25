@@ -118,9 +118,9 @@ fn eliminate_dependency_cycles(sdk: &mut Sdk) {
     fn inner(current: NI, g: &G, mut chain: Vec<NI>) -> Option<Vec<NI>> {
         let mut out = None;
         for neighbor in g.neighbors(current) {
-            if chain.contains(&neighbor) {
+            if let Some(i) = chain.iter().position(|n| *n == neighbor) {
                 chain.push(neighbor);
-                return Some(chain);
+                return Some(chain.split_off(i));
             }
 
             let mut copy = chain.clone();

@@ -370,6 +370,8 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         writeln!(w, "}}\n")?;
     }
 
+    // Doing it separately beceause `impl_process_event_fns` doesn't support static and non static functions in the same invokation,
+    // and implementing it would be a pain in the ass.
     if !nonstatic_fns.is_empty() {
         writeln!(
             w,
