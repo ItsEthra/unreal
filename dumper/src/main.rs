@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use argh::FromArgs;
+use clap::Parser;
 use dumper::{codegen::generate_rust_sdk, Config, DumperOptions};
 use log::{info, warn, LevelFilter};
 use petgraph::dot;
@@ -11,35 +11,36 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(FromArgs)]
 /// Dumpes unreal engine SDK externally by accessing game memory through WinAPI.
+#[derive(Parser)]
+#[clap(version, author)]
 struct Args {
     /// process id of the game
-    #[argh(option, short = 'p')]
+    #[clap(short = 'p', long = "process-id")]
     pid: u32,
     /// FNamePool offset
-    #[argh(option, short = 'N')]
+    #[clap(short = 'N', long)]
     names: String,
     /// TUObjectArray offset
-    #[argh(option, short = 'O')]
+    #[clap(short = 'O', long)]
     objects: String,
     /// specifies packages to merge together in format `target:consumer`
-    #[argh(option, short = 'm')]
+    #[clap(short = 'm', long)]
     merge: Vec<String>,
     /// do not write generated SDK to the disk
-    #[argh(switch, short = 'd')]
-    dummy: bool,
+    #[clap(short = 'd', long = "dry-run")]
+    dry: bool,
     /// do not try to eliminate dependency cycles
-    #[argh(switch, short = 'b')]
+    #[clap(short = 'b', long)]
     allow_cycles: bool,
     /// generate dot file with dependency graph
-    #[argh(option, short = 'g')]
+    #[clap(short = 'g', long)]
     dot: Option<String>,
     /// output folder for the generated SDK
-    #[argh(option, short = 'o')]
+    #[clap(short = 'o', long)]
     output: Option<String>,
     /// config file path
-    #[argh(option, short = 'c')]
+    #[clap(short = 'c', long)]
     config: Option<String>,
 }
 
@@ -53,15 +54,15 @@ fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     let filter = LevelFilter::Debug;
 
-    let args = argh::from_env::<Args>();
+    let args = Args::parse();
     env_logger::builder()
         .format_target(false)
         .filter_level(filter)
         .parse_default_env()
         .init();
 
-    if args.dummy {
-        warn!("Running with dummy generator selected, no files will be written onto disk!");
+    if args.dry {
+        warn!("Performing a dry run, no SDK will be written to the disk");
         sleep(Duration::from_millis(1000));
     }
 
@@ -94,7 +95,7 @@ fn main() -> Result<()> {
         info!("Saved dependency graph file as {path}");
     }
 
-    if !args.dummy {
+    if !args.dry {
         let start = Instant::now();
         generate_rust_sdk(args.output.unwrap_or("usdk".into()), &sdk)?;
         info!("Sdk generation finished in {:.2?}", start.elapsed());

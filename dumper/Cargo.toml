@@ -8,7 +8,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow = "1.0.75"
-argh = "0.1.12"
+clap = { version = "4.4.0", features = ["derive"] }
 env_logger = "0.10.0"
 hex = "0.4.3"
 log = "0.4.20"
@@ -17,5 +17,5 @@ petgraph = "0.6.3"
 serde = { version = "1.0.185", features = ["derive"] }
 toml = "0.7.6"
 
-# TODO: Remove
+# TODO: Remove?
 ucore = { path = "../ucore" }

@@ -1,5 +1,6 @@
 Stride = 2
 ProcessEvent = 0x4D
+LevelActors = 0xA8
 
 [FUObjectItem]
 Size = 0x20

@@ -3,6 +3,9 @@ Stride = 2
 # you need to find it yourself.
 ProcessEvent = 0x4D
 
+# This is optional, if specified dumper will add an actor array to ULevel at this offset.
+LevelActors = 0xA8
+
 [FUObjectItem]
 Size = 0x18
 

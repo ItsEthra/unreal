@@ -323,6 +323,7 @@ fn select_prefix(ustruct: UStructPtr) -> Result<char> {
 }
 
 fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<Struct> {
+    let config = &State::get().config;
     let fqn = ustruct_ptr.cast::<UObjectPtr>().fqn()?;
 
     let prefix = select_prefix(ustruct_ptr.cast())?;
@@ -353,12 +354,15 @@ fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<S
     };
     let mut accumulator = BitfieldAccumulator::default();
 
-    if cfg!(debug_assertions) && fqn == fqn!("Engine.Level") {
+    if let Some(offset) = (fqn == fqn!("Engine.Level"))
+        .then_some(config.level_actors)
+        .flatten()
+    {
         ustruct.fields.push(Field::Property {
             name: "Actors".into(),
             kind: PropertyKind::Vec(PropertyKind::Ptr(fqn!("Engine.Actor")).into()),
             options: FieldOptions {
-                offset: 0xA8,
+                offset: offset as usize,
                 elem_size: 0x10,
                 array_dim: 1,
             },

@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub struct Config {
     pub stride: u32,
     pub process_event: u32,
+    pub level_actors: Option<u32>,
 
     #[serde(rename = "FUObjectItem")]
     pub fuobject_item: OfFUObjectItem,
@@ -94,6 +95,8 @@ pub struct OfFProperty {
 const DEFAULT: Config = Config {
     stride: 2,
     process_event: 0x4D,
+    level_actors: None,
+
     fuobject_item: OfFUObjectItem { size: 0x18 },
     uobject: OfUObject {
         index: 0xC,
