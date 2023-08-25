@@ -343,6 +343,9 @@ fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<S
     }
 
     let mut ustruct = Struct {
+        is_uobject: !ustruct_ptr
+            .cast::<UObjectPtr>()
+            .is_a(fqn!("CoreUObject.ScriptStruct"))?,
         layout: Layout { size, align },
         functions: vec![].into(),
         shrink: None.into(),

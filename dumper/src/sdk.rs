@@ -129,6 +129,7 @@ pub struct Enum {
 pub struct Struct {
     pub fqn: Fqn,
     pub index: u32,
+    pub is_uobject: bool,
     pub parent: Option<Fqn>,
     pub ident: String,
     pub shrink: Cell<Option<usize>>,

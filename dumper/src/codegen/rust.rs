@@ -203,6 +203,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         shrink,
         functions,
         index,
+        is_uobject,
     } = ustruct;
 
     if *fqn == fqn!("CoreUObject.Object") {
@@ -352,12 +353,14 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
 
     let config = &State::get().config;
 
-    writeln!(w, "    }}\n}}")?;
-    writeln!(
-        w,
-        "impl_uobject_like!({ident}, {:#X}, {index});\n",
-        config.process_event
-    )?;
+    writeln!(w, "    }}\n}}\n")?;
+    if *is_uobject {
+        writeln!(
+            w,
+            "impl_uobject_like!({ident}, {:#X}, {index});\n",
+            config.process_event
+        )?;
+    }
 
     if !bitfields.is_empty() {
         writeln!(w, "memflex::bitfields! {{")?;
