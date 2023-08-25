@@ -2,6 +2,10 @@ Stride = 2
 ProcessEvent = 0x4D
 LevelActors = 0xA8
 
+[Offsets]
+Objects = 0xE199FA0
+Names = 0xE0D3780
+
 [FUObjectItem]
 Size = 0x20
 

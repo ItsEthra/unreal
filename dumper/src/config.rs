@@ -7,6 +7,8 @@ pub struct Config {
     pub process_event: u32,
     pub level_actors: Option<u32>,
 
+    pub offsets: Option<Offsets>,
+
     #[serde(rename = "FUObjectItem")]
     pub fuobject_item: OfFUObjectItem,
     #[serde(rename = "UObject")]
@@ -23,6 +25,15 @@ pub struct Config {
     pub fproperty: OfFProperty,
     #[serde(rename = "UFunction")]
     pub ufunction: OfUFunction,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Offsets {
+    pub names: Option<usize>,
+    pub objects: Option<usize>,
+    pub world: Option<usize>,
+    pub engine: Option<usize>,
 }
 
 impl Default for Config {
@@ -96,6 +107,7 @@ const DEFAULT: Config = Config {
     stride: 2,
     process_event: 0x4D,
     level_actors: None,
+    offsets: None,
 
     fuobject_item: OfFUObjectItem { size: 0x18 },
     uobject: OfUObject {

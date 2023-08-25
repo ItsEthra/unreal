@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use dumper::{codegen::generate_rust_sdk, Config, DumperOptions};
 use log::{info, warn, LevelFilter};
@@ -21,10 +21,10 @@ struct Args {
     pid: Option<u32>,
     /// FNamePool offset
     #[clap(short = 'N', long)]
-    names: String,
+    names: Option<String>,
     /// TUObjectArray offset
     #[clap(short = 'O', long)]
-    objects: String,
+    objects: Option<String>,
     /// specifies packages to merge together in format `target:consumer`
     #[clap(short = 'm', long)]
     merge: Vec<String>,
@@ -63,6 +63,16 @@ fn get_process_id(arg_id: Option<u32>) -> Result<u32> {
     }
 }
 
+fn get_offset(from_cfg: Option<usize>, from_arg: &Option<String>, name: &str) -> Result<usize> {
+    if let Some(offset) = from_cfg {
+        Ok(offset)
+    } else if let Some(arg) = from_arg {
+        Ok(parse_hex_arg(arg)?)
+    } else {
+        bail!("Missing {name} offset")
+    }
+}
+
 fn main() -> Result<()> {
     #[cfg(not(debug_assertions))]
     let filter = LevelFilter::Info;
@@ -81,18 +91,25 @@ fn main() -> Result<()> {
         sleep(Duration::from_millis(1000));
     }
 
+    let config = fetch_offsets(&args.config)?;
     let options = DumperOptions {
-        objects: parse_hex_arg(&args.objects)?,
-        names: parse_hex_arg(&args.names)?,
+        objects: get_offset(
+            config.offsets.as_ref().and_then(|o| o.objects),
+            &args.objects,
+            "TUObjectArray",
+        )?,
+        names: get_offset(
+            config.offsets.as_ref().and_then(|o| o.names),
+            &args.names,
+            "FNamePool",
+        )?,
         merge: parse_merge_args(&args.merge)?,
         allow_cycles: args.allow_cycles,
         process_id: get_process_id(args.pid)?,
     };
 
-    let offsets = fetch_offsets(&args.config)?;
-
     let start = Instant::now();
-    let sdk = dumper::run(options, offsets)?;
+    let sdk = dumper::run(options, config)?;
     info!("Dumper finished in {:.2?}", start.elapsed());
 
     if let Some(mut path) = args.dot {
