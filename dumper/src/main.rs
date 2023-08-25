@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use dumper::{codegen::generate_rust_sdk, Config, DumperOptions};
 use log::{info, warn, LevelFilter};
+use memflex::external::{find_window, find_window_process_thread};
 use petgraph::dot;
 use std::{
     collections::HashMap,
@@ -17,7 +18,7 @@ use std::{
 struct Args {
     /// process id of the game
     #[clap(short = 'p', long = "process-id")]
-    pid: u32,
+    pid: Option<u32>,
     /// FNamePool offset
     #[clap(short = 'N', long)]
     names: String,
@@ -48,6 +49,20 @@ fn parse_hex_arg(arg: &str) -> Result<usize> {
     usize::from_str_radix(arg.strip_prefix("0x").unwrap_or(arg), 16).map_err(Into::into)
 }
 
+fn get_process_id(arg_id: Option<u32>) -> Result<u32> {
+    let find = || {
+        let window = find_window("UnrealWindow".into(), None)?;
+        let (pid, _) = find_window_process_thread(window)?;
+        Result::Ok(pid)
+    };
+
+    if let Some(id) = arg_id {
+        Ok(id)
+    } else {
+        find()
+    }
+}
+
 fn main() -> Result<()> {
     #[cfg(not(debug_assertions))]
     let filter = LevelFilter::Info;
@@ -71,7 +86,7 @@ fn main() -> Result<()> {
         names: parse_hex_arg(&args.names)?,
         merge: parse_merge_args(&args.merge)?,
         allow_cycles: args.allow_cycles,
-        process_id: args.pid,
+        process_id: get_process_id(args.pid)?,
     };
 
     let offsets = fetch_offsets(&args.config)?;
