@@ -9,8 +9,8 @@ use std::{
 pub struct GlobalContext {
     names: *mut FNamePool,
     objects: *mut FChunkedFixedUObjectArray,
-    engine: *mut (),
-    world: *mut (),
+    engine: *mut *mut (),
+    world: *mut *mut (),
 }
 
 unsafe impl Sync for GlobalContext {}
@@ -28,13 +28,13 @@ impl GlobalContext {
         }
     }
 
-    pub fn with_engine(mut self, engine: *mut ()) -> Self {
-        self.engine = engine as _;
+    pub fn with_engine(mut self, engine: *mut *mut ()) -> Self {
+        self.engine = engine;
         self
     }
 
-    pub fn with_world(mut self, world: *mut ()) -> Self {
-        self.world = world as _;
+    pub fn with_world(mut self, world: *mut *mut ()) -> Self {
+        self.world = world;
         self
     }
 
@@ -61,11 +61,11 @@ impl GlobalContext {
         unsafe { self.objects.as_ref().unwrap() }
     }
 
-    pub fn engine<Engine>(&self) -> Option<Ptr<Engine>> {
-        NonNull::new(self.engine.cast::<Engine>()).map(Ptr)
+    pub unsafe fn engine<Engine>(&self) -> Option<Ptr<Engine>> {
+        NonNull::new(self.engine.read().cast::<Engine>()).map(Ptr)
     }
 
-    pub fn world<World>(&self) -> Option<Ptr<World>> {
-        NonNull::new(self.world.cast::<World>()).map(Ptr)
+    pub unsafe fn world<World>(&self) -> Option<Ptr<World>> {
+        NonNull::new(self.world.read().cast::<World>()).map(Ptr)
     }
 }
