@@ -1,4 +1,4 @@
-use crate::{assert_size, FName, GlobalContext, Ptr};
+use crate::{assert_size, FName, GlobalContext, HashedFqn, Ptr};
 use bitflags::bitflags;
 use memflex::offset_of;
 use std::{
@@ -12,8 +12,9 @@ pub struct FUObjectItem {
     pub flags: u32,
     pub root_index: i32,
     pub serial: u32,
+    _pad: usize,
 }
-assert_size!(FUObjectItem, 0x18);
+assert_size!(FUObjectItem, 0x20);
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -81,7 +82,8 @@ pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
     const INDEX: u32;
 
     fn static_class() -> Ptr<UClass<PEIDX>> {
-        let object = UObject::<PEIDX>::get_by_index(Self::INDEX);
+        let object =
+            UObject::<PEIDX>::get_by_index(Self::INDEX).expect("Failed to find the object");
         Ptr(object.0.cast::<UClass<PEIDX>>())
     }
 
@@ -124,11 +126,16 @@ unsafe impl<const PEIDX: usize> Send for UObject<PEIDX> {}
 unsafe impl<const PEIDX: usize> Sync for UObject<PEIDX> {}
 
 impl<const PEIDX: usize> UObject<PEIDX> {
-    pub fn get_by_index(idx: u32) -> Ptr<Self> {
+    #[inline]
+    pub fn get_by_index(idx: u32) -> Option<Ptr<Self>> {
+        GlobalContext::get().chunked_fixed_uobject_array().nth(idx)
+    }
+
+    pub fn get_by_fqn(hash: HashedFqn) -> Option<Ptr<Self>> {
         GlobalContext::get()
             .chunked_fixed_uobject_array()
-            .nth(idx)
-            .unwrap()
+            .iter()
+            .find(|obj| obj.eq_fqn(hash))
     }
 
     #[inline]
@@ -154,6 +161,14 @@ impl<const PEIDX: usize> UObject<PEIDX> {
     #[inline]
     pub fn name(&self) -> FName {
         self.name
+    }
+
+    pub fn eq_fqn(&self, hash: HashedFqn) -> bool {
+        let namepool = GlobalContext::get().name_pool();
+        successors(Some(Ptr::from_ref(self)), |obj| obj.outer)
+            .map(|obj| namepool.resolve(obj.name.index()))
+            .enumerate()
+            .all(|(i, entry)| hash.0[i] == entry.hash())
     }
 
     pub unsafe fn process_event<Args>(&mut self, function: Ptr<Self>, args: *mut Args) {

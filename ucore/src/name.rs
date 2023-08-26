@@ -2,10 +2,12 @@ use crate::GlobalContext;
 use std::{
     borrow::Cow,
     fmt::{self, Debug, Display},
+    hash::Hasher,
     marker::PhantomData,
     mem::size_of,
     str::from_utf8_unchecked,
 };
+use twox_hash::XxHash32;
 
 // const FNAME_MAX_BLOCK_BITS: u32 = 13;
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
@@ -97,6 +99,37 @@ impl FNameEntry {
             } else {
                 from_utf8_unchecked(&data.ansi[..len]).into()
             }
+        }
+    }
+
+    pub fn hash(&self) -> u32 {
+        let header = self.header();
+        if header.is_wide() {
+            let data = self.data().as_wide(header.len());
+            let i = data
+                .iter()
+                .rposition(|b| char::from_u32(*b as _) == Some('/'))
+                .unwrap_or(usize::MAX)
+                .wrapping_add(1);
+            let mut hash = XxHash32::default();
+            for char in char::decode_utf16(data[i..].iter().copied())
+                .map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER))
+            {
+                hash.write_u32(char as u32);
+            }
+            hash.finish() as u32
+        } else {
+            let data = self.data().as_ansi(header.len());
+            let i = data
+                .iter()
+                .rposition(|b| *b == b'/')
+                .unwrap_or(usize::MAX)
+                .wrapping_add(1);
+            let mut hash = XxHash32::default();
+            for chunk in data[i..].chunks(4) {
+                hash.write(chunk);
+            }
+            hash.finish() as u32
         }
     }
 }

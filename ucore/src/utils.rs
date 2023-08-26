@@ -147,7 +147,7 @@ impl Fqn {
 
     #[inline]
     pub fn name(&self) -> &'static str {
-        self.parts[self.len - 1]
+        self.parts[0]
     }
 
     #[inline]
