@@ -417,10 +417,11 @@ fn write_function(
 ) -> Result<()> {
     let Function {
         ident: func_ident,
-        index,
         args,
         ret,
         flags,
+        fqn,
+        ..
     } = func;
 
     let mut argd = NameDedup::default();
@@ -454,13 +455,13 @@ fn write_function(
     )?;
 
     match ret.len() {
-        0 => writeln!(w, "= {index:#X};")?,
+        0 => writeln!(w, "= \"{fqn}\";")?,
         1 => {
             let ty = stringify_type(&ret[0].kind, sdk, PointerMode::Ptr)
                 .unwrap_or_else(|| Cow::from("*const ()"));
             writeln!(
                 w,
-                "-> [<{ident}_{func_ident}Result> {}: {ty}] = {index:#X};",
+                "-> [<{ident}_{func_ident}Result> {}: {ty}] = \"{fqn}\";",
                 argd.entry(&ret[0].name)
             )?;
         }
@@ -477,7 +478,7 @@ fn write_function(
                     if i == ret.len() - 1 { "" } else { ", " }
                 )?;
             }
-            writeln!(w, "] = {index:#X};")?;
+            writeln!(w, "] = \"{fqn}\";")?;
         }
     }
 

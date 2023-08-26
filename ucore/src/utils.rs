@@ -171,6 +171,9 @@ impl PartialEq<HashedFqn> for Fqn {
 
 #[macro_export]
 macro_rules! fqn {
+    ( #$fqn:literal ) => {
+        $crate::Fqn::from_human_readable($fqn)
+    };
     ( $($tt:tt)* ) => {
         $crate::Fqn::from_human_readable(stringify!($($tt)*))
     };

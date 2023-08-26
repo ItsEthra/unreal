@@ -47,6 +47,13 @@ impl FChunkedFixedUObjectArray {
         let object = NonNull::new(unsafe { (*item).object.cast() })?;
         Some(Ptr(object))
     }
+
+    pub fn by_fqn<const PEIDX: usize>(&self, hash: HashedFqn) -> Option<Ptr<UObject<PEIDX>>> {
+        GlobalContext::get()
+            .chunked_fixed_uobject_array()
+            .iter()
+            .find(|obj| obj.eq_fqn(hash))
+    }
 }
 
 #[allow(dead_code)]
@@ -131,11 +138,11 @@ impl<const PEIDX: usize> UObject<PEIDX> {
         GlobalContext::get().chunked_fixed_uobject_array().nth(idx)
     }
 
+    #[inline]
     pub fn get_by_fqn(hash: HashedFqn) -> Option<Ptr<Self>> {
         GlobalContext::get()
             .chunked_fixed_uobject_array()
-            .iter()
-            .find(|obj| obj.eq_fqn(hash))
+            .by_fqn(hash)
     }
 
     #[inline]

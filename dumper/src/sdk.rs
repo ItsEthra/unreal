@@ -142,6 +142,7 @@ pub struct Struct {
 #[derive(Debug)]
 pub struct Function {
     pub ident: String,
+    pub fqn: Fqn,
     pub index: u32,
     pub flags: FunctionFlags,
     pub args: Vec<FunctionArg>,

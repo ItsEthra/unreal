@@ -248,6 +248,7 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
     }
 
     let function = Function {
+        fqn: object.fqn()?,
         ident,
         index,
         flags,

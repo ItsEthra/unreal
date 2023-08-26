@@ -15,8 +15,8 @@ macro_rules! impl_process_event_fns {
     {
         [$target:ident, $peidx:expr],
         $(
-            $vis:vis fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $index:expr
-        );* $(;)?
+            $vis:vis fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $fqn:literal;
+        )*
     } => {
         $(
             $(
@@ -35,7 +35,7 @@ macro_rules! impl_process_event_fns {
 
                     unsafe {
                         if FUNCTION.is_none() {
-                            FUNCTION = Some($crate::UObject::get_by_index($index));
+                            FUNCTION = Some($crate::UObject::get_by_fqn($crate::fqn!(#$fqn).hash()).expect("Failed to find the object"));
                         }
                     }
 
@@ -62,8 +62,8 @@ macro_rules! impl_process_event_fns {
     {
         [$target:ident, $peidx:expr],
         $(
-            $vis:vis static fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $index:expr
-        );* $(;)?
+            $vis:vis static fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $fqn:literal;
+        )*
     } => {
         $(
             $(
@@ -82,7 +82,7 @@ macro_rules! impl_process_event_fns {
 
                     unsafe {
                         if FUNCTION.is_none() {
-                            FUNCTION = Some($crate::UObject::get_by_index($index));
+                            FUNCTION = Some($crate::UObject::get_by_fqn($crate::fqn!(#$fqn).hash()).expect("Failed to find the object"));
                         }
                     }
 
