@@ -3,14 +3,11 @@ use crate::{
         FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr, UFunctionPtr,
         UObjectPtr, UStructPtr,
     },
-    fqn,
     sdk::{
         Enum, Field, FieldOptions, Function, FunctionArg, Object, Package, PropertyKind, Sdk,
         Struct,
     },
-    utils::{
-        sanitize_ident, strip_package_name, AccumulatorResult, BitfieldAccumulator, Fqn, Layout,
-    },
+    utils::{sanitize_ident, strip_package_name, AccumulatorResult, BitfieldAccumulator, Layout},
     State,
 };
 use anyhow::{bail, Result};
@@ -27,6 +24,7 @@ use std::{
     iter::successors,
     ops::RangeInclusive,
 };
+use ucore::{fqn, Fqn};
 
 pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
     let mut sdk = Sdk::default();
@@ -45,7 +43,6 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
         } else if object.is_a(fqn!("CoreUObject.ScriptStruct"))?
             || object.is_a(fqn!("CoreUObject.Class"))?
         {
-            // Code dupliation is intentional, to avoid ading wrong or empty packages.
             let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
             Object::Struct(index_struct(object.cast(), foreign)?)
@@ -122,7 +119,9 @@ fn eliminate_dependency_cycles(sdk: &mut Sdk) {
                 chain.push(neighbor);
                 return Some(chain.split_off(i));
             }
+        }
 
+        for neighbor in g.neighbors(current) {
             let mut copy = chain.clone();
             copy.push(neighbor);
             out = out.or(inner(neighbor, g, copy));

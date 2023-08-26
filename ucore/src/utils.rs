@@ -21,116 +21,6 @@ macro_rules! assert_size {
     };
 }
 
-#[macro_export]
-macro_rules! impl_process_event_fns {
-    { @retty } => { () };
-    { @retty $ret_struct:ty; $ret_ty:ty } => { $ret_ty };
-    { @retty $ret_struct:ty; $($ret_ty:ty)* } => { $ret_struct };
-
-    { @retval $args:ident } => { };
-    { @retval $args:ident $ret_struct:ident $ret_name:ident } => { return $args.$ret_name; };
-    { @retval $args:ident $ret_struct:ident $($ret_name:ident)*} => {
-        return $ret_struct {
-            $($ret_name: $args.$ret_name,)*
-        };
-    };
-
-    {
-        [$target:ident, $peidx:expr],
-        $(
-            $vis:vis fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $index:expr
-        );* $(;)?
-    } => {
-        $(
-            $(
-                #[allow(dead_code, non_snake_case)]
-                pub struct $ret_struct {
-                    $(pub $ret_name: $ret_ty,)*
-                }
-            )?
-        )*
-
-        impl $target {
-            $(
-                #[allow(dead_code, non_snake_case)]
-                $vis fn $name(&mut self, $($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!( @retty $( $ret_struct; $($ret_ty)* )? ) {
-                    static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
-
-                    unsafe {
-                        if FUNCTION.is_none() {
-                            FUNCTION = Some($crate::UObject::get_by_index($index));
-                        }
-                    }
-
-                    #[repr(C)]
-                    struct Args {
-                        $( $arg_name: $arg_ty, )*
-                        $( $( $ret_name: $ret_ty, )* )?
-                    }
-
-                    unsafe {
-                        let mut args = Args {
-                            $($arg_name,)*
-                            $( $($ret_name: std::mem::zeroed(),)* )?
-                        };
-                        let mut object = <Self as $crate::UObjectLike<$peidx>>::as_uobject(self);
-                        object.process_event(*FUNCTION.as_ref().unwrap(), &mut args);
-
-                        $crate::impl_process_event_fns!( @retval args $( $ret_struct $($ret_name)* )? );
-                    }
-                }
-            )*
-        }
-    };
-    {
-        [$target:ident, $peidx:expr],
-        $(
-            $vis:vis static fn $name:ident($($arg_name:ident: $arg_ty:ty),* $(,)?) $(-> [<$ret_struct:ident> $($ret_name:ident: $ret_ty:ty),* ])? = $index:expr
-        );* $(;)?
-    } => {
-        $(
-            $(
-                #[allow(dead_code, non_snake_case)]
-                pub struct $ret_struct {
-                    $(pub $ret_name: $ret_ty,)*
-                }
-            )?
-        )*
-
-        impl $target {
-            $(
-                #[allow(dead_code, non_snake_case)]
-                $vis fn $name($($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!( @retty $( $ret_struct; $($ret_ty)* )? ) {
-                    static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
-
-                    unsafe {
-                        if FUNCTION.is_none() {
-                            FUNCTION = Some($crate::UObject::get_by_index($index));
-                        }
-                    }
-
-                    #[repr(C)]
-                    struct Args {
-                        $( $arg_name: $arg_ty, )*
-                        $( $( $ret_name: $ret_ty, )* )?
-                    }
-
-                    unsafe {
-                        let mut args = Args {
-                            $($arg_name,)*
-                            $( $($ret_name: std::mem::zeroed(),)* )?
-                        };
-                        let mut class = <Self as $crate::UObjectLike<$peidx>>::static_class();
-                        class.process_event(*FUNCTION.as_ref().unwrap(), &mut args);
-
-                        $crate::impl_process_event_fns!( @retval args $( $ret_struct $($ret_name)* )? );
-                    }
-                }
-            )*
-        }
-    };
-}
-
 pub struct Shrink<const SIZE: usize, T> {
     buf: [u8; SIZE],
     pd: PhantomData<T>,
@@ -211,5 +101,69 @@ impl<T: ?Sized> DerefMut for Ptr<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.0.as_mut() }
+    }
+}
+
+const FQN_LEN: usize = 4;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Fqn {
+    parts: [&'static str; FQN_LEN],
+    len: usize,
+}
+
+impl Fqn {
+    pub fn from_human_readable(ident: &'static str) -> Self {
+        let mut this = Self::from_iter(ident.split('.'));
+        this.parts[..this.len].reverse();
+
+        this
+    }
+
+    pub fn from_iter(iter: impl Iterator<Item = &'static str>) -> Self {
+        let mut len = 0;
+        let mut parts = [""; FQN_LEN];
+
+        for (i, part) in iter.enumerate() {
+            parts[i] = part;
+            len = i + 1;
+        }
+        assert!(len != 0, "Empty Fqns are not allowed");
+
+        Self { parts, len }
+    }
+
+    pub fn parts(&self) -> &[&'static str] {
+        &self.parts[..self.len]
+    }
+
+    pub fn name(&self) -> &'static str {
+        self.parts[self.len - 1]
+    }
+}
+
+#[macro_export]
+macro_rules! fqn {
+    ($ident:expr) => {
+        $crate::Fqn::from_human_readable($ident)
+    };
+}
+
+impl fmt::Display for Fqn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, part) in self.parts[..self.len].iter().rev().enumerate() {
+            match true {
+                _ if i == self.len - 1 => write!(f, "{}", part)?,
+                _ => write!(f, "{}.", part)?,
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Fqn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", &self.parts[..self.len])
     }
 }

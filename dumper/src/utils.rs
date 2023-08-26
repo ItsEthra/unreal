@@ -9,13 +9,6 @@ use std::{
     mem::take,
 };
 
-#[macro_export]
-macro_rules! fqn {
-    ($ident:expr) => {
-        $crate::utils::Fqn::new($ident)
-    };
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Layout {
     pub size: usize,
@@ -51,50 +44,6 @@ impl Layout {
 fn test_align_layout() {
     let layout = Layout { size: 12, align: 8 };
     assert_eq!(layout.get_aligned_size(), 16);
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Fqn {
-    package: &'static str,
-    name: &'static str,
-}
-
-impl Fqn {
-    pub fn new(ident: &'static str) -> Self {
-        let (package, name) = ident.split_once('.').expect("Invalid FQN");
-        Self { package, name }
-    }
-
-    pub fn eq_str(&self, s: &str) -> bool {
-        s.strip_prefix(self.package)
-            .and_then(|s| s.strip_suffix(self.name))
-            .map(|s| s == ".")
-            .unwrap_or(false)
-    }
-
-    pub const fn from_package_name(package: &'static str, name: &'static str) -> Self {
-        Self { package, name }
-    }
-
-    pub const fn package(&self) -> &'static str {
-        self.package
-    }
-
-    pub const fn name(&self) -> &'static str {
-        self.name
-    }
-}
-
-impl Display for Fqn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.package, self.name)
-    }
-}
-
-impl Debug for Fqn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.package, self.name)
-    }
 }
 
 #[derive(Debug)]

@@ -1,6 +1,5 @@
 use crate::{
     engine::{FunctionFlags, PropertyFlags},
-    fqn,
     sdk::{Enum, Field, FieldOptions, Function, Object, Package, PropertyKind, Sdk, Struct},
     utils::Bitfield,
     State,
@@ -17,6 +16,7 @@ use std::{
     iter::successors,
     path::Path,
 };
+use ucore::fqn;
 
 pub fn generate_rust_sdk(path: impl AsRef<Path>, sdk: &Sdk) -> Result<()> {
     let path = path.as_ref().to_path_buf();

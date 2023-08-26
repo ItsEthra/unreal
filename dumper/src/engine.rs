@@ -1,9 +1,7 @@
-use crate::{
-    utils::{strip_package_name, Fqn},
-    Config, State,
-};
-use anyhow::Result;
+use crate::{utils::strip_package_name, Config, State};
+use anyhow::{ensure, Result};
 use memflex::sizeof;
+use ucore::Fqn;
 use std::iter::successors;
 
 macro_rules! mkfn {
@@ -265,11 +263,11 @@ impl FNamePtr {
 impl UObjectPtr {
     pub(crate) fn fqn(&self) -> Result<Fqn> {
         let outer = self.outer()?;
-        anyhow::ensure!(!outer.is_null(), "Can't get FQN of a package");
+        ensure!(!outer.is_null(), "Can't get FQN of a package");
 
-        let package = strip_package_name(outer.name().get()?);
-        let name = self.name().get()?;
-        Ok(Fqn::from_package_name(package, name))
+        let ascendants = successors(Some(*self), |obj| obj.outer().unwrap().non_null())
+            .map(|obj| strip_package_name(obj.name().get().unwrap()));
+        Ok(Fqn::from_iter(ascendants))
     }
 
     pub(crate) fn is_a(&self, fqn: Fqn) -> Result<bool> {

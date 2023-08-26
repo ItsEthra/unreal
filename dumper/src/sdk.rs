@@ -1,6 +1,6 @@
 use crate::{
     engine::{FunctionFlags, PropertyFlags},
-    utils::{BitfieldGroup, Fqn, Layout},
+    utils::{BitfieldGroup, Layout},
     State,
 };
 use petgraph::{graph::NodeIndex, stable_graph::StableGraph, Directed};
@@ -10,6 +10,7 @@ use std::{
     fmt::{self, Debug},
     rc::Rc,
 };
+use ucore::Fqn;
 
 /// TODO: Someone please educate me on weak pointers.
 /// I can only assume that in this file, I would mostly want to use Weak instead of Rc pointers,

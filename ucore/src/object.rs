@@ -106,15 +106,6 @@ pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
     }
 }
 
-#[macro_export]
-macro_rules! impl_uobject_like {
-    ($target:ty, $peidx:expr, $idx:expr) => {
-        unsafe impl $crate::UObjectLike<{ $peidx }> for $target {
-            const INDEX: u32 = $idx;
-        }
-    };
-}
-
 // PEIDX = Process Event Index
 #[repr(C)]
 pub struct UObject<const PEIDX: usize> {

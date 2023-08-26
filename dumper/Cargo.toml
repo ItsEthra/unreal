@@ -17,5 +17,4 @@ petgraph = "0.6.3"
 serde = { version = "1.0.185", features = ["derive"] }
 toml = "0.7.6"
 
-# TODO: Remove?
 ucore = { path = "../ucore" }
