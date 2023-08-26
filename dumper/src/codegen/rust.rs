@@ -206,7 +206,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         is_uobject,
     } = ustruct;
 
-    if *fqn == fqn!("CoreUObject.Object") {
+    if *fqn == fqn!(CoreUObject.Object) {
         return Ok(());
     }
 

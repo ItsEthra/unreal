@@ -38,10 +38,10 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
         assert!(!outer.is_null() && outer.outer()?.is_null());
         let outer_name = sanitize_ident(strip_package_name(outer.name().get()?));
 
-        let object = if object.is_a(fqn!("CoreUObject.Enum"))? {
+        let object = if object.is_a(fqn!(CoreUObject.Enum))? {
             Object::Enum(index_enum(object.cast())?)
-        } else if object.is_a(fqn!("CoreUObject.ScriptStruct"))?
-            || object.is_a(fqn!("CoreUObject.Class"))?
+        } else if object.is_a(fqn!(CoreUObject.ScriptStruct))?
+            || object.is_a(fqn!(CoreUObject.Class))?
         {
             let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
@@ -59,7 +59,7 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
             continue;
         };
 
-        if object.is_a(fqn!("CoreUObject.Function"))? {
+        if object.is_a(fqn!(CoreUObject.Function))? {
             assert!(!outer.is_null() && outer.outer()?.is_null());
             let outer_name = sanitize_ident(strip_package_name(outer.name().get()?));
 
@@ -310,9 +310,9 @@ fn select_prefix(ustruct: UStructPtr) -> Result<char> {
             .any(|s| s.cast::<UObjectPtr>().fqn().unwrap() == fqn)
     };
 
-    let prefix = if child_of(fqn!("Engine.Actor")) {
+    let prefix = if child_of(fqn!(Engine.Actor)) {
         'A'
-    } else if child_of(fqn!("CoreUObject.Object")) {
+    } else if child_of(fqn!(CoreUObject.Object)) {
         'U'
     } else {
         'F'
@@ -344,7 +344,7 @@ fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<S
     let mut ustruct = Struct {
         is_uobject: !ustruct_ptr
             .cast::<UObjectPtr>()
-            .is_a(fqn!("CoreUObject.ScriptStruct"))?,
+            .is_a(fqn!(CoreUObject.ScriptStruct))?,
         layout: Layout { size, align },
         functions: vec![].into(),
         shrink: None.into(),
@@ -356,13 +356,13 @@ fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<S
     };
     let mut accumulator = BitfieldAccumulator::default();
 
-    if let Some(offset) = (fqn == fqn!("Engine.Level"))
+    if let Some(offset) = (fqn == fqn!(Engine.Level))
         .then_some(config.level_actors)
         .flatten()
     {
         ustruct.fields.push(Field::Property {
             name: "Actors".into(),
-            kind: PropertyKind::Vec(PropertyKind::Ptr(fqn!("Engine.Actor")).into()),
+            kind: PropertyKind::Vec(PropertyKind::Ptr(fqn!(Engine.Actor)).into()),
             options: FieldOptions {
                 offset: offset as usize,
                 elem_size: 0x10,

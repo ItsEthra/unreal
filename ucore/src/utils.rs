@@ -1,9 +1,12 @@
 use std::{
     fmt::{self, Debug},
+    hash::Hasher,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
+
+use twox_hash::XxHash32;
 
 #[macro_export]
 macro_rules! assert_size {
@@ -106,6 +109,10 @@ impl<T: ?Sized> DerefMut for Ptr<T> {
 
 const FQN_LEN: usize = 4;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct HashedFqn(pub(crate) [u32; FQN_LEN]);
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Fqn {
     parts: [&'static str; FQN_LEN],
@@ -133,19 +140,39 @@ impl Fqn {
         Self { parts, len }
     }
 
+    #[inline]
     pub fn parts(&self) -> &[&'static str] {
         &self.parts[..self.len]
     }
 
+    #[inline]
     pub fn name(&self) -> &'static str {
         self.parts[self.len - 1]
+    }
+
+    #[inline]
+    pub fn hash(&self) -> HashedFqn {
+        let mut out = [0; FQN_LEN];
+        for (i, part) in self.parts().iter().enumerate() {
+            let mut hasher = XxHash32::default();
+            hasher.write(part.as_bytes());
+            out[i] = hasher.finish() as u32;
+        }
+
+        HashedFqn(out)
+    }
+}
+
+impl PartialEq<HashedFqn> for Fqn {
+    fn eq(&self, other: &HashedFqn) -> bool {
+        self.hash() == *other
     }
 }
 
 #[macro_export]
 macro_rules! fqn {
-    ($ident:expr) => {
-        $crate::Fqn::from_human_readable($ident)
+    ( $($tt:tt)* ) => {
+        $crate::Fqn::from_human_readable(stringify!($($tt)*))
     };
 }
 
