@@ -12,9 +12,8 @@ pub struct FUObjectItem {
     pub flags: u32,
     pub root_index: i32,
     pub serial: u32,
-    _pad: usize,
 }
-assert_size!(FUObjectItem, 0x20);
+assert_size!(FUObjectItem, 0x18);
 
 #[derive(Debug)]
 #[allow(dead_code)]

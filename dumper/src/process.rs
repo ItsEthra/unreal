@@ -1,7 +1,7 @@
 use crate::{
     engine::{
-        FBoolProperty, FFieldPtr, FPropertyPtr, PropertyFlags, UClassPtr, UEnumPtr, UFunctionPtr,
-        UObjectPtr, UStructPtr,
+        FBoolProperty, FFieldPtr, FPropertyPtr, UClassPtr, UEnumPtr, UFunctionPtr, UObjectPtr,
+        UStructPtr,
     },
     sdk::{
         Enum, Field, FieldOptions, Function, FunctionArg, Object, Package, PropertyKind, Sdk,
@@ -227,7 +227,6 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
     let flags = object.cast::<UFunctionPtr>().flags()?;
 
     let mut args = vec![];
-    let mut ret = vec![];
 
     let ptr = object.cast::<UStructPtr>();
     for arg in successors(ptr.children_props()?.non_null(), |field| {
@@ -240,11 +239,7 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
         let flags = property.flags()?;
 
         let arg = FunctionArg { name, kind, flags };
-        if flags.contains(PropertyFlags::OutParm) {
-            ret.push(arg);
-        } else {
-            args.push(arg)
-        }
+        args.push(arg);
     }
 
     let function = Function {
@@ -253,7 +248,6 @@ fn index_function(object: UObjectPtr, foreign: &mut HashSet<Fqn>) -> Result<Func
         index,
         flags,
         args,
-        ret,
     };
     Ok(function)
 }

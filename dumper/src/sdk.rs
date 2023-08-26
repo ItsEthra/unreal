@@ -146,10 +146,9 @@ pub struct Function {
     pub index: u32,
     pub flags: FunctionFlags,
     pub args: Vec<FunctionArg>,
-    pub ret: Vec<FunctionArg>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionArg {
     pub name: String,
     pub kind: PropertyKind,

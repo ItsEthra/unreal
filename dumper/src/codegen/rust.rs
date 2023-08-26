@@ -373,37 +373,23 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         .iter()
         .partition::<Vec<_>, _>(|f| f.flags.contains(FunctionFlags::Static));
 
-    if !static_fns.is_empty() {
-        writeln!(
-            w,
-            "impl_process_event_fns! {{\n    [{ident}, {:#X}],\n",
-            config.process_event
-        )?;
+    writeln!(
+        w,
+        "impl_process_event_fns! {{\n    [{ident}, {:#X}]\n",
+        config.process_event
+    )?;
 
-        let mut funcd = NameDedup::default();
-        for func in static_fns.iter() {
-            write_function(w, ident, func, sdk, &mut funcd)?;
-        }
-
-        writeln!(w, "}}\n")?;
+    let mut funcd = NameDedup::default();
+    for func in static_fns.iter() {
+        write_function(w, ident, func, sdk, &mut funcd)?;
     }
 
-    // Doing it separately beceause `impl_process_event_fns` doesn't support static and non static functions in the same invokation,
-    // and implementing it would be a pain in the ass.
-    if !nonstatic_fns.is_empty() {
-        writeln!(
-            w,
-            "impl_process_event_fns! {{\n    [{ident}, {:#X}],\n",
-            config.process_event
-        )?;
-
-        let mut funcd = NameDedup::default();
-        for func in nonstatic_fns.iter() {
-            write_function(w, ident, func, sdk, &mut funcd)?;
-        }
-
-        writeln!(w, "}}\n")?;
+    let mut funcd = NameDedup::default();
+    for func in nonstatic_fns.iter() {
+        write_function(w, ident, func, sdk, &mut funcd)?;
     }
+
+    writeln!(w, "}}\n")?;
 
     Ok(())
 }
@@ -418,67 +404,92 @@ fn write_function(
     let Function {
         ident: func_ident,
         args,
-        ret,
         flags,
         fqn,
         ..
     } = func;
 
     let mut argd = NameDedup::default();
+    let mut args = args.to_vec();
+    for arg in args.iter_mut() {
+        arg.name = argd.entry(&arg.name).to_string()
+    }
+    drop(argd);
 
-    let args = args
-        .iter()
-        .map(|arg| {
-            let mode = if arg.flags.contains(PropertyFlags::ConstParm) {
-                PointerMode::Const
-            } else {
-                PointerMode::Mut
-            };
+    let mut fargs = "".to_owned();
+    let mut params = "".to_owned();
 
-            format!(
-                "{}: {}",
-                argd.entry(&arg.name),
-                stringify_type(&arg.kind, sdk, mode).unwrap_or_else(|| Cow::from("*const ()"))
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
+    for arg in args.iter() {
+        let mode = if arg.flags.contains(PropertyFlags::OutParm) {
+            PointerMode::Ptr
+        } else {
+            PointerMode::Mut
+        };
+
+        let part = format!(
+            "{}: {}",
+            &arg.name,
+            stringify_type(&arg.kind, sdk, mode).unwrap_or_else(|| Cow::from("*const ()"))
+        );
+
+        if !arg.flags.contains(PropertyFlags::OutParm) {
+            fargs += &part;
+            fargs += ", ";
+        }
+
+        params += &part;
+        params += ", ";
+    }
+
+    if !params.is_empty() {
+        params.truncate(params.len() - 2);
+    }
+
+    if !fargs.is_empty() {
+        fargs.truncate(fargs.len() - 2);
+    }
+
     write!(
         w,
-        "    pub {}fn {}({args}) ",
+        "    {} {}({fargs}) ",
         if flags.contains(FunctionFlags::Static) {
-            "static "
+            "static"
         } else {
-            ""
+            "fn"
         },
         funcd.entry(func_ident)
     )?;
 
+    let ret = args
+        .iter()
+        .filter(|a| a.flags.contains(PropertyFlags::OutParm))
+        .collect::<Vec<_>>();
+
     match ret.len() {
-        0 => writeln!(w, "= \"{fqn}\";")?,
+        0 => writeln!(w, "= \"{fqn}\"; {{ {params} }}")?,
         1 => {
             let ty = stringify_type(&ret[0].kind, sdk, PointerMode::Ptr)
                 .unwrap_or_else(|| Cow::from("*const ()"));
             writeln!(
                 w,
-                "-> [<{ident}_{func_ident}Result> {}: {ty}] = \"{fqn}\";",
-                argd.entry(&ret[0].name)
+                "-> [{ident}_{func_ident}Result; {}: {ty}] = \"{fqn}\"; {{ {params} }}",
+                &ret[0].name
             )?;
         }
         _ => {
-            write!(w, "-> [<{ident}_{func_ident}Result> ")?;
+            write!(w, "-> [{ident}_{func_ident}Result; ")?;
             for (i, arg) in ret.iter().enumerate() {
                 let ty = stringify_type(&arg.kind, sdk, PointerMode::Ptr)
                     .unwrap_or_else(|| Cow::from("*const ()"));
                 write!(
                     w,
                     "{}: {}{}",
-                    argd.entry(&arg.name),
+                    &arg.name,
                     ty,
                     if i == ret.len() - 1 { "" } else { ", " }
                 )?;
             }
-            writeln!(w, "] = \"{fqn}\";")?;
+            writeln!(w, "] = \"{fqn}\"; {{ {params} }}")?;
         }
     }
 
@@ -487,7 +498,6 @@ fn write_function(
 
 #[derive(Clone, Copy)]
 enum PointerMode {
-    Const,
     Mut,
     Ptr,
 }
@@ -510,7 +520,6 @@ fn stringify_type(kind: &PropertyKind, sdk: &Sdk, mode: PointerMode) -> Option<C
         PropertyKind::Ptr(inner) => {
             let object = sdk.lookup(inner).unwrap();
             match mode {
-                PointerMode::Const => format!("*const {}", object.ptr.ident()).into(),
                 PointerMode::Mut => format!("*mut {}", object.ptr.ident()).into(),
                 PointerMode::Ptr => format!("Option<Ptr<{}>>", object.ptr.ident()).into(),
             }
