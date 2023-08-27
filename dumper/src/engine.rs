@@ -9,7 +9,7 @@ macro_rules! mkfn {
         #[allow(clippy::redundant_closure_call)]
         pub fn $field(&self) -> Result<$kind> {
             Ok(State::get()
-                .proc
+                .external
                 .read(self.0 + ($offset)(&State::get().config))?)
         }
     };
@@ -120,7 +120,7 @@ mkptr! {
 impl UEnumPtr {
     pub fn names(&self) -> Result<TArray> {
         let State {
-            proc,
+            external: proc,
             config: offsets,
             ..
         } = State::get();
@@ -243,7 +243,7 @@ impl TArray {
     pub fn iter<T>(&self) -> impl Iterator<Item = Result<T>> + '_ {
         (0..self.len as usize).map(|i| {
             State::get()
-                .proc
+                .external
                 .read::<T>(self.ptr + i * sizeof!(T))
                 .map_err(Into::into)
         })
@@ -252,7 +252,7 @@ impl TArray {
 
 impl FNamePtr {
     pub fn read(&self) -> Result<u32> {
-        Ok(State::get().proc.read(self.0)?)
+        Ok(State::get().external.read(self.0)?)
     }
 
     pub(crate) fn get(&self) -> Result<&'static str> {

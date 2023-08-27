@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use dumper::{codegen::generate_rust_sdk, Config, DumperOptions};
 use log::{info, warn, LevelFilter};
@@ -109,8 +109,26 @@ fn main() -> Result<()> {
         process_id: get_process_id(args.pid)?,
     };
 
+    #[cfg(windows)]
+    use memflex::types::win::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+
+    #[cfg(windows)]
+    let proc = memflex::external::open_process_by_id(
+        options.process_id,
+        false,
+        PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
+    )?;
+
+    #[cfg(unix)]
+    let proc = memflex::external::find_process_by_id(options.process_id)?;
+
+    let module = proc
+        .modules()?
+        .find(|m| m.name.ends_with("exe"))
+        .ok_or(anyhow!("Failed to find process executable image"))?;
+
     let start = Instant::now();
-    let sdk = dumper::run(options, config)?;
+    let sdk = dumper::run(options, config, Box::new(proc), module.base as _)?;
     info!("Dumper finished in {:.2?}", start.elapsed());
 
     if let Some(mut path) = args.dot {

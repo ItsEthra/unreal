@@ -25,7 +25,7 @@ impl NamePool {
 pub(crate) fn dump_names() -> Result<NamePool> {
     let State {
         options,
-        proc,
+        external: proc,
         base,
         config: offsets,
         ..
@@ -73,7 +73,7 @@ pub(crate) fn dump_names() -> Result<NamePool> {
 }
 
 fn dump_block(pool: usize, idx: usize, size: usize) -> Result<Box<[u8]>> {
-    let State { proc, .. } = State::get();
+    let State { external: proc, .. } = State::get();
 
     let address =
         proc.read::<usize>(pool + sizeof!(usize) + sizeof!(u32) * 2 + idx * sizeof!(usize))?;
