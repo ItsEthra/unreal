@@ -1,8 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
-use dumper::{codegen::generate_rust_sdk, Config, DumperOptions};
 use log::{info, warn, LevelFilter};
-use memflex::external::{find_window, find_window_process_thread};
+use memflex::external::{find_window, find_window_process_thread, OwnedProcess};
 use petgraph::dot;
 use std::{
     collections::HashMap,
@@ -11,6 +10,7 @@ use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
+use uedumper::{codegen::generate_rust_sdk, Config, DumperOptions, External};
 
 /// Dumpes unreal engine SDK externally by accessing game memory through WinAPI.
 #[derive(Parser)]
@@ -128,7 +128,7 @@ fn main() -> Result<()> {
         .ok_or(anyhow!("Failed to find process executable image"))?;
 
     let start = Instant::now();
-    let sdk = dumper::run(options, config, Box::new(proc), module.base as _)?;
+    let sdk = uedumper::run(options, config, Box::new(Wrapper(proc)), module.base as _)?;
     info!("Dumper finished in {:.2?}", start.elapsed());
 
     if let Some(mut path) = args.dot {
@@ -177,4 +177,13 @@ fn parse_merge_args(merge: &[String]) -> Result<HashMap<String, String>> {
                 .context("Invalid merge argument")
         })
         .collect::<Result<HashMap<_, _>>>()
+}
+
+struct Wrapper(OwnedProcess);
+impl External for Wrapper {
+    fn read_buf(&self, address: usize, buf: &mut [u8]) -> Result<()> {
+        OwnedProcess::read_buf(&self.0, address, buf)
+            .map(|_| ())
+            .map_err(Into::into)
+    }
 }

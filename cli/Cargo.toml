@@ -1,0 +1,21 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "uedumper"
+path = "src/main.rs"
+
+[dependencies]
+uedumper = { path = "../dumper" }
+clap = { version = "4.4.0", features = ["derive"] }
+memflex = { version = "0.7.0", features = ["external"] }
+anyhow = "1.0.75"
+env_logger = "0.10.0"
+petgraph = "0.6.3"
+log = "0.4.20"
+toml = "0.7.6"

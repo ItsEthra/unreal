@@ -1,8 +1,7 @@
 use crate::State;
 use anyhow::Result;
 use log::{debug, info};
-use memflex::sizeof;
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::size_of};
 use ucore::{FNameEntry, FNameEntryHeader};
 
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
@@ -32,8 +31,9 @@ pub(crate) fn dump_names() -> Result<NamePool> {
     } = State::get();
 
     let pool_ptr = *base + options.names;
-    let current_block = proc.read::<u32>(pool_ptr + sizeof!(usize))?;
-    let current_block_byte_cursor = proc.read::<u32>(pool_ptr + sizeof!(usize) + sizeof!(u32))?;
+    let current_block = proc.read::<u32>(pool_ptr + size_of::<usize>())?;
+    let current_block_byte_cursor =
+        proc.read::<u32>(pool_ptr + size_of::<usize>() + size_of::<u32>())?;
 
     info!("FNamePool: CurrentBlock = {current_block} CurrentBlockByteCursor = {current_block_byte_cursor}");
 
@@ -60,7 +60,7 @@ pub(crate) fn dump_names() -> Result<NamePool> {
 
                 entry = entry
                     .cast::<u8>()
-                    .add(sizeof!(FNameEntryHeader) + (*entry).size_in_bytes())
+                    .add(size_of::<FNameEntryHeader>() + (*entry).size_in_bytes())
                     .cast();
                 total_names += 1;
             }
@@ -75,8 +75,9 @@ pub(crate) fn dump_names() -> Result<NamePool> {
 fn dump_block(pool: usize, idx: usize, size: usize) -> Result<Box<[u8]>> {
     let State { external: proc, .. } = State::get();
 
-    let address =
-        proc.read::<usize>(pool + sizeof!(usize) + sizeof!(u32) * 2 + idx * sizeof!(usize))?;
+    let address = proc.read::<usize>(
+        pool + size_of::<usize>() + size_of::<u32>() * 2 + idx * size_of::<usize>(),
+    )?;
     debug!("FNamePool: Dumping block {idx} at address {address:#X}");
 
     let mut data = Vec::with_capacity(size);

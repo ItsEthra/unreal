@@ -1,7 +1,7 @@
 use crate::{utils::strip_package_name, Config, State};
 use anyhow::{ensure, Result};
-use memflex::sizeof;
-use std::iter::successors;
+use bitflags::bitflags;
+use std::{iter::successors, mem::size_of};
 use ucore::Fqn;
 
 macro_rules! mkfn {
@@ -110,7 +110,7 @@ mkptr! {
         // children UFieldPtr: = |c: &C| c.ustruct.children,
         children_props FFieldPtr: = |c: &C| c.ustruct.children_props,
         props_size u32: = |c: &C| c.ustruct.props_size,
-        min_align u32: = |c: &C| c.ustruct.props_size + sizeof!(u32),
+        min_align u32: = |c: &C| c.ustruct.props_size + size_of::<u32>(),
     }
     UClassPtr {}
     UEnumPtr { }
@@ -143,7 +143,7 @@ pub struct FunctionVars {
     pub flags: FunctionFlags,
 }
 
-memflex::bitflags! {
+bitflags! {
     #[derive(Debug)]
     pub struct FunctionFlags : u32 {
         const Final= 0x00000001;
@@ -244,7 +244,7 @@ impl TArray {
         (0..self.len as usize).map(|i| {
             State::get()
                 .external
-                .read::<T>(self.ptr + i * sizeof!(T))
+                .read::<T>(self.ptr + i * size_of::<T>())
                 .map_err(Into::into)
         })
     }

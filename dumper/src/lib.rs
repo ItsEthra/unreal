@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use memflex::external::OwnedProcess;
 use names::NamePool;
 use sdk::Sdk;
 use std::{
@@ -93,13 +92,5 @@ impl dyn External {
         self.read_buf(address, buf)?;
 
         Ok(temp)
-    }
-}
-
-impl External for OwnedProcess {
-    fn read_buf(&self, address: usize, buf: &mut [u8]) -> Result<()> {
-        OwnedProcess::read_buf(self, address, buf)
-            .map(|_| ())
-            .map_err(Into::into)
     }
 }

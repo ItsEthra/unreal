@@ -134,26 +134,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd7cc57abe963c6d3b9d8be5b06ba7c8957a930305ca90304f24ef040aa6f961"
 
 [[package]]
-name = "colorchoice"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
-
-[[package]]
-name = "dumper"
+name = "cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "env_logger",
- "hex",
  "log",
  "memflex",
  "petgraph",
- "serde",
  "toml",
- "ucore",
+ "uedumper",
 ]
+
+[[package]]
+name = "colorchoice"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "env_logger"
@@ -218,12 +216,6 @@ name = "hermit-abi"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
-
-[[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "humantime"
@@ -500,6 +492,18 @@ dependencies = [
  "memflex",
  "once_cell",
  "twox-hash",
+]
+
+[[package]]
+name = "uedumper"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags",
+ "log",
+ "petgraph",
+ "serde",
+ "ucore",
 ]
 
 [[package]]

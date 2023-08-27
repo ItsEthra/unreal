@@ -10,11 +10,11 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use log::info;
-use memflex::sizeof;
 use petgraph::graph::NodeIndex;
 use std::{
     collections::{HashMap, HashSet},
     iter::successors,
+    mem::size_of,
     ops::RangeInclusive,
     time::Instant,
 };
@@ -368,7 +368,8 @@ fn get_property_kind(field: FFieldPtr, foreign: &mut HashSet<Fqn>) -> Result<Pro
             PropertyKind::Inline(fqn)
         }
         "EnumProperty" => {
-            let uenum = proc.read::<UEnumPtr>(field.0 + offsets.fproperty.size + sizeof!(usize))?;
+            let uenum =
+                proc.read::<UEnumPtr>(field.0 + offsets.fproperty.size + size_of::<usize>())?;
             let fqn = uenum.cast::<UObjectPtr>().fqn()?;
             foreign.insert(fqn);
 
@@ -385,7 +386,7 @@ fn get_property_kind(field: FFieldPtr, foreign: &mut HashSet<Fqn>) -> Result<Pro
         "MapProperty" => {
             let key = proc.read::<FPropertyPtr>(field.0 + offsets.fproperty.size)?;
             let value =
-                proc.read::<FPropertyPtr>(field.0 + offsets.fproperty.size + sizeof!(usize))?;
+                proc.read::<FPropertyPtr>(field.0 + offsets.fproperty.size + size_of::<usize>())?;
 
             PropertyKind::Map {
                 key: get_property_kind(key.cast(), foreign)?.into(),
