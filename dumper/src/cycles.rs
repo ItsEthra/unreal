@@ -1,6 +1,7 @@
 use crate::sdk::{Package, Sdk};
-use log::warn;
+use log::{info, warn};
 use petgraph::{
+    algo::kosaraju_scc,
     stable_graph::{NodeIndex, StableGraph},
     Directed,
     Direction::{Incoming, Outgoing},
@@ -25,35 +26,25 @@ pub(crate) fn eliminate_dependency_cycles(sdk: &mut Sdk) {
         s
     }
 
-    fn inner(current: NI, g: &G, mut chain: Vec<NI>) -> Option<Vec<NI>> {
+    fn inner(current: NI, g: &G, mut chain: Vec<NI>, group: &[NI]) -> Option<Vec<NI>> {
         let mut out = None;
-        for neighbor in g.neighbors(current) {
+        for neighbor in g.neighbors(current).filter(|n| group.contains(n)) {
             if let Some(i) = chain.iter().position(|n| *n == neighbor) {
                 chain.push(neighbor);
                 return Some(chain.split_off(i));
             }
         }
 
-        for neighbor in g.neighbors(current) {
+        for neighbor in g.neighbors(current).filter(|n| group.contains(n)) {
             let mut copy = chain.clone();
             copy.push(neighbor);
-            out = out.or(inner(neighbor, g, copy));
+            out = out.or(inner(neighbor, g, copy, group));
         }
 
         out
     }
 
-    loop {
-        let cycle = |i: NI| inner(i, &sdk.packages, vec![i]);
-        let Some(cycle) = sdk.packages.node_indices().find_map(cycle) else {
-            break;
-        };
-
-        warn!(
-            "Eliminating dependency cycle {}",
-            format_cycle(&cycle, &sdk.packages)
-        );
-
+    fn eliminate_cycle(cycle: &[NI], sdk: &mut Sdk) {
         let consumer = cycle[0];
         for idx in (cycle[1..cycle.len() - 1]).iter().rev() {
             for dependant in sdk
@@ -91,4 +82,26 @@ pub(crate) fn eliminate_dependency_cycles(sdk: &mut Sdk) {
             consumer.objects.extend(objects);
         }
     }
+
+    let mut n = 0;
+    for group in kosaraju_scc(&sdk.packages) {
+        if group.len() < 2 {
+            continue;
+        }
+
+        loop {
+            let cycle = |i: NI| inner(i, &sdk.packages, vec![i], &group);
+            let Some(cycle) = sdk.packages.node_indices().find_map(cycle) else {
+                break;
+            };
+
+            warn!(
+                "Found dependency cycle {}",
+                format_cycle(&cycle, &sdk.packages)
+            );
+            eliminate_cycle(&cycle, sdk);
+            n += 1;
+        }
+    }
+    info!("Eliminated a total of {n} dependency cycles");
 }

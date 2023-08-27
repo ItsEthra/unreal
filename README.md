@@ -4,7 +4,7 @@ Tooling for generating SDK for UE 4.25+ games.
 ## Features
 - 🗃️ Rust SDK for your Unreal Engine game.
 - 🔧 Flexible SDK generation allows you to easily add support for other languages.
-- 🔥 Blazingly fast. `[ INFO ] Dumper finished in 1.79s`
+- 🔥 Blazingly fast. Dumped 1400 packages and removed dependency cycles in 15 seconds.
 - 🌐 Cross platform. Tested on windows and linux.
 - ♻️ Automatic elimination of dependency cycles.
 - 👾 Method generation to assist in calling in-game functions.
