@@ -2,7 +2,13 @@ use anyhow::{anyhow, Context, Result};
 use memflex::external::OwnedProcess;
 use names::NamePool;
 use sdk::Sdk;
-use std::{collections::HashMap, sync::OnceLock};
+use std::{
+    collections::HashMap,
+    mem::{size_of, zeroed},
+    ptr::addr_of_mut,
+    slice::from_raw_parts_mut,
+    sync::OnceLock,
+};
 
 pub mod codegen {
     mod rust;
@@ -50,10 +56,10 @@ pub fn run(options: DumperOptions, offsets: Config) -> Result<Sdk> {
 
     let state = State {
         base: module.base as usize,
+        external: Box::new(proc) as _,
         names: OnceLock::new(),
         config: offsets,
         options,
-        proc,
     };
     _ = STATE.set(state);
 
@@ -68,11 +74,11 @@ pub fn run(options: DumperOptions, offsets: Config) -> Result<Sdk> {
 static STATE: OnceLock<State> = OnceLock::new();
 
 struct State {
+    names: OnceLock<NamePool>,
+    external: Box<dyn External>,
     options: DumperOptions,
-    proc: OwnedProcess,
     config: Config,
     base: usize,
-    names: OnceLock<NamePool>,
 }
 
 impl State {
@@ -86,5 +92,27 @@ impl State {
 
     fn get() -> &'static Self {
         STATE.get().unwrap()
+    }
+}
+
+trait External: Send + Sync + 'static {
+    fn read_buf(&self, address: usize, buf: &mut [u8]) -> Result<()>;
+}
+
+impl dyn External {
+    fn read<T>(&self, address: usize) -> Result<T> {
+        let mut temp: T = unsafe { zeroed() };
+        let buf = unsafe { from_raw_parts_mut(addr_of_mut!(temp).cast::<u8>(), size_of::<T>()) };
+        self.read_buf(address, buf)?;
+
+        Ok(temp)
+    }
+}
+
+impl External for OwnedProcess {
+    fn read_buf(&self, address: usize, buf: &mut [u8]) -> Result<()> {
+        OwnedProcess::read_buf(self, address, buf)
+            .map(|_| ())
+            .map_err(Into::into)
     }
 }

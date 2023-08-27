@@ -327,7 +327,7 @@ fn index_struct(ustruct_ptr: UStructPtr, foreign: &mut HashSet<Fqn>) -> Result<S
 
 fn get_property_kind(field: FFieldPtr, foreign: &mut HashSet<Fqn>) -> Result<PropertyKind> {
     let State {
-        proc,
+        external: proc,
         config: offsets,
         ..
     } = State::get();

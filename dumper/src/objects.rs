@@ -8,7 +8,7 @@ const NUM_ELEMENTS_PER_CHUNK: usize = 64 * 1024;
 pub(crate) fn dump_objects() -> Result<Vec<UObjectPtr>> {
     let State {
         options,
-        proc,
+        external: proc,
         base,
         ..
     } = State::get();
@@ -32,7 +32,7 @@ pub(crate) fn dump_objects() -> Result<Vec<UObjectPtr>> {
 
 fn get_nth_object(array: usize, idx: usize) -> Result<Option<UObjectPtr>> {
     let State {
-        proc,
+        external: proc,
         config: offsets,
         ..
     } = State::get();
