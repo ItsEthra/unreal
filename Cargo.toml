@@ -1,0 +1,11 @@
+[workspace]
+members = ["ucore", "dumper", "cli"]
+exclude = ["usdk"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["ItsEthra"]
+repository = "https://github.com/ItsEthra/unreal"
