@@ -18,8 +18,6 @@ macro_rules! assert_size {
                 ") != ",
                 stringify!($size)
             ))
-        } else {
-            ()
         };
     };
 }
@@ -74,7 +72,7 @@ impl<T: ?Sized> Ptr<T> {
 impl<T: ?Sized> Clone for Ptr<T> {
     #[inline]
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 
@@ -121,13 +119,13 @@ pub struct Fqn {
 
 impl Fqn {
     pub fn from_human_readable(ident: &'static str) -> Self {
-        let mut this = Self::from_iter(ident.split('.'));
+        let mut this = Self::from_parts(ident.split('.'));
         this.parts[..this.len].reverse();
 
         this
     }
 
-    pub fn from_iter(iter: impl Iterator<Item = &'static str>) -> Self {
+    pub fn from_parts(iter: impl Iterator<Item = &'static str>) -> Self {
         let mut len = 0;
         let mut parts = [""; FQN_LEN];
 

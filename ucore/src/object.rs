@@ -84,6 +84,8 @@ impl<const PEIDX: usize> DerefMut for UClass<PEIDX> {
     }
 }
 
+/// # Safety
+/// * Must only implemented for unreal engine UObjects
 pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
     const INDEX: u32;
 
@@ -177,6 +179,8 @@ impl<const PEIDX: usize> UObject<PEIDX> {
             .all(|(i, entry)| hash.0[i] == entry.hash())
     }
 
+    /// # Safety
+    /// * Process event function index (`PEIDX`) was set correctly and object has a valid VMT pointer.
     pub unsafe fn process_event<Args>(&mut self, function: Ptr<Self>, args: *mut Args) {
         self.vmt
             .cast::<extern "C" fn(&mut Self, Ptr<Self>, *mut Args)>()

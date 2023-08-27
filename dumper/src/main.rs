@@ -150,7 +150,7 @@ fn fetch_offsets(config: &Option<String>) -> Result<Config> {
 }
 
 fn parse_merge_args(merge: &[String]) -> Result<HashMap<String, String>> {
-    Ok(merge
+    merge
         .iter()
         .flat_map(|v| v.split(','))
         .map(|v| {
@@ -158,5 +158,5 @@ fn parse_merge_args(merge: &[String]) -> Result<HashMap<String, String>> {
                 .map(|(a, b)| (a.into(), b.into()))
                 .context("Invalid merge argument")
         })
-        .collect::<Result<HashMap<_, _>>>()?)
+        .collect::<Result<HashMap<_, _>>>()
 }

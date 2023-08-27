@@ -63,10 +63,14 @@ impl GlobalContext {
         unsafe { self.objects.as_ref().unwrap() }
     }
 
+    /// # Safety
+    /// * Pointer that was used passed to `with_engine` must be available for reads.
     pub unsafe fn engine<Engine>(&self) -> Option<Ptr<Engine>> {
         NonNull::new(self.engine.read().cast::<Engine>()).map(Ptr)
     }
 
+    /// # Safety
+    /// * Pointer that was used passed to `with_world` must be available for reads.
     pub unsafe fn world<World>(&self) -> Option<Ptr<World>> {
         NonNull::new(self.world.read().cast::<World>()).map(Ptr)
     }

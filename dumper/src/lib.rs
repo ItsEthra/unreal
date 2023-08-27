@@ -9,6 +9,7 @@ pub mod codegen {
     pub use rust::*;
 }
 
+pub(crate) mod cycles;
 mod engine;
 mod names;
 mod objects;

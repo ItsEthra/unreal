@@ -1,8 +1,8 @@
 use crate::{utils::strip_package_name, Config, State};
 use anyhow::{ensure, Result};
 use memflex::sizeof;
-use ucore::Fqn;
 use std::iter::successors;
+use ucore::Fqn;
 
 macro_rules! mkfn {
     ($field:ident $kind:ident, = $offset:expr) => {
@@ -267,7 +267,7 @@ impl UObjectPtr {
 
         let ascendants = successors(Some(*self), |obj| obj.outer().unwrap().non_null())
             .map(|obj| strip_package_name(obj.name().get().unwrap()));
-        Ok(Fqn::from_iter(ascendants))
+        Ok(Fqn::from_parts(ascendants))
     }
 
     pub(crate) fn is_a(&self, fqn: Fqn) -> Result<bool> {
