@@ -23,6 +23,7 @@ use std::{
     collections::{HashMap, HashSet},
     iter::successors,
     ops::RangeInclusive,
+    time::Instant,
 };
 use ucore::{fqn, Fqn};
 
@@ -30,6 +31,9 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
     let mut sdk = Sdk::default();
     let mut foreign_map: HashMap<NodeIndex, HashSet<Fqn>> = HashMap::new();
 
+    let start = Instant::now();
+
+    let mut functions = vec![];
     for object in objects {
         let Some(outer) = get_outermost_object(*object)? else {
             continue;
@@ -46,6 +50,9 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
             let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
             Object::Struct(index_struct(object.cast(), foreign)?)
+        } else if object.is_a(fqn!(CoreUObject.Function))? {
+            functions.push(object);
+            continue;
         } else {
             continue;
         };
@@ -53,8 +60,9 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
     }
     info!("Found {} packages", sdk.packages.node_count());
 
-    let mut num_funcs = 0;
-    for object in objects {
+    // Functions are processed after all structures in order to avoid issues
+    // when functions go before the structure the belong in.
+    for &object in functions.iter() {
         let Some(outer) = get_outermost_object(*object)? else {
             continue;
         };
@@ -78,10 +86,11 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
             };
 
             target.functions.borrow_mut().push(function);
-            num_funcs += 1;
         }
     }
-    info!("Found {num_funcs} functions");
+
+    info!("Found {} functions", functions.len());
+    info!("Object indexing finished in {:.2?}", start.elapsed());
 
     populate_dependency_map(&mut sdk, foreign_map);
     shrink_base_classes(&sdk);

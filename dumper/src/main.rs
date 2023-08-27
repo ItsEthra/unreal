@@ -82,6 +82,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     env_logger::builder()
         .format_target(false)
+        .format_timestamp(None)
         .filter_level(filter)
         .parse_default_env()
         .init();
