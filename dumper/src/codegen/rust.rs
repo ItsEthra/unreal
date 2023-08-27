@@ -167,7 +167,11 @@ fn generate_enum(w: &mut dyn WriteIo, uenum: &Enum) -> Result<()> {
     writeln!(w, "// Size = {}", layout.size)?;
     writeln!(
         w,
-        "#[repr(transparent)]\npub struct {ident}(pub u{});\n\nimpl {ident} {{",
+        "#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n#[repr(transparent)]"
+    )?;
+    writeln!(
+        w,
+        "pub struct {ident}(pub u{});\n\nimpl {ident} {{",
         layout.size * 8,
     )?;
 
