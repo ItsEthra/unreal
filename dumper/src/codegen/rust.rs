@@ -373,27 +373,29 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     }
 
     let funcs = functions.borrow();
-    let (static_fns, nonstatic_fns) = funcs
-        .iter()
-        .partition::<Vec<_>, _>(|f| f.flags.contains(FunctionFlags::Static));
+    if !funcs.is_empty() {
+        let (static_fns, nonstatic_fns) = funcs
+            .iter()
+            .partition::<Vec<_>, _>(|f| f.flags.contains(FunctionFlags::Static));
 
-    writeln!(
-        w,
-        "impl_process_event_fns! {{\n    [{ident}, {:#X}]\n",
-        config.process_event
-    )?;
+        writeln!(
+            w,
+            "impl_process_event_fns! {{\n    [{ident}, {:#X}]\n",
+            config.process_event
+        )?;
 
-    let mut funcd = NameDedup::default();
-    for func in static_fns.iter() {
-        write_function(w, ident, func, sdk, &mut funcd)?;
+        let mut funcd = NameDedup::default();
+        for func in static_fns.iter() {
+            write_function(w, ident, func, sdk, &mut funcd)?;
+        }
+
+        let mut funcd = NameDedup::default();
+        for func in nonstatic_fns.iter() {
+            write_function(w, ident, func, sdk, &mut funcd)?;
+        }
+
+        writeln!(w, "}}\n")?;
     }
-
-    let mut funcd = NameDedup::default();
-    for func in nonstatic_fns.iter() {
-        write_function(w, ident, func, sdk, &mut funcd)?;
-    }
-
-    writeln!(w, "}}\n")?;
 
     Ok(())
 }
