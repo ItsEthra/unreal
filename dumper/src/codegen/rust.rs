@@ -206,8 +206,8 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         fields,
         shrink,
         functions,
-        index,
         is_uobject,
+        ..
     } = ustruct;
 
     if *fqn == fqn!(CoreUObject.Object) {
@@ -361,7 +361,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
     if *is_uobject {
         writeln!(
             w,
-            "impl_uobject_like!({ident}, {:#X}, {index});\n",
+            "impl_uobject_like!({ident}, {:#X}, \"{fqn}\");\n",
             config.process_event
         )?;
     }

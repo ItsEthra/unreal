@@ -18,12 +18,12 @@ assert_size!(FUObjectItem, 0x18);
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct FChunkedFixedUObjectArray {
-    pub objects: *const *const FUObjectItem,
-    pub preallocated: *const (),
-    pub max_elems: u32,
-    pub num_elems: u32,
-    pub max_chunks: u32,
-    pub num_chunks: u32,
+    objects: *const *const FUObjectItem,
+    preallocated: *const (),
+    max_elems: u32,
+    num_elems: u32,
+    max_chunks: u32,
+    num_chunks: u32,
 }
 
 impl FChunkedFixedUObjectArray {
@@ -68,6 +68,11 @@ impl<const PEIDX: usize> UClass<PEIDX> {
     pub fn is(&self, class: Ptr<Self>) -> bool {
         successors(Some(Ptr::from_ref(self)), |class| class.super_struct).any(|ptr| ptr == class)
     }
+
+    #[inline]
+    pub fn super_struct(&self) -> Option<Ptr<Self>> {
+        self.super_struct
+    }
 }
 
 impl<const PEIDX: usize> Deref for UClass<PEIDX> {
@@ -87,13 +92,7 @@ impl<const PEIDX: usize> DerefMut for UClass<PEIDX> {
 /// # Safety
 /// * Must only implemented for unreal engine UObjects
 pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
-    const INDEX: u32;
-
-    fn static_class() -> Ptr<UClass<PEIDX>> {
-        let object =
-            UObject::<PEIDX>::get_by_index(Self::INDEX).expect("Failed to find the object");
-        Ptr(object.0.cast::<UClass<PEIDX>>())
-    }
+    fn static_class() -> Ptr<UClass<PEIDX>>;
 
     fn is<T: UObjectLike<PEIDX>>(&self) -> bool {
         self.as_uobject().class.is(T::static_class())
@@ -134,11 +133,6 @@ unsafe impl<const PEIDX: usize> Send for UObject<PEIDX> {}
 unsafe impl<const PEIDX: usize> Sync for UObject<PEIDX> {}
 
 impl<const PEIDX: usize> UObject<PEIDX> {
-    #[inline]
-    pub fn get_by_index(idx: u32) -> Option<Ptr<Self>> {
-        GlobalContext::get().chunked_fixed_uobject_array().nth(idx)
-    }
-
     #[inline]
     pub fn get_by_fqn(hash: HashedFqn) -> Option<Ptr<Self>> {
         GlobalContext::get()

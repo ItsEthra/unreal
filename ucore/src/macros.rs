@@ -82,15 +82,26 @@ macro_rules! impl_process_event_fns {
 
 #[macro_export]
 macro_rules! impl_uobject_like {
-    ($target:ty, $peidx:expr, $idx:expr) => {
+    ($target:ty, $peidx:expr, $fqn:expr) => {
         unsafe impl $crate::UObjectLike<{ $peidx }> for $target {
-            const INDEX: u32 = $idx;
+            fn static_class() -> $crate::Ptr<$crate::UClass<{ $peidx }>> {
+                unsafe {
+                    static mut CLASS: Option<$crate::Ptr<$crate::UClass<{ $peidx }>>> = None;
+
+                    if CLASS.is_none() {
+                        let hash = $crate::Fqn::from_human_readable($fqn).hash();
+                        CLASS = $crate::UObject::<{ $peidx }>::get_by_fqn(hash).map(|p| p.cast());
+                    }
+
+                    CLASS.expect("Failed to find the object")
+                }
+            }
         }
     };
 }
 
 struct Foo;
-impl_uobject_like!(Foo, 0x4D, 0x4D);
+impl_uobject_like!(Foo, 0x4D, "CoreUObject.Foo");
 impl_process_event_fns!(
     [Foo, 0x4D]
 
