@@ -16,7 +16,7 @@ macro_rules! impl_process_event_fns {
         pub fn $name(&mut self, $($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!(@retty $($result $($ret_name: $ret_ty),*)? ) {
             $($body)*
 
-            inner(<Self as $crate::UObjectLike<$peidx>>::as_uobject(self), $($arg_name),*)
+            inner(<Self as $crate::UObjectExt<$peidx>>::as_uobject(self), $($arg_name),*)
         }
     };
     (@fnbody $peidx:tt static $name:ident $($arg_name:ident $arg_ty:ty),*; $($result:ident $($ret_name:ident $ret_ty:ty),*)? [$($body:tt)*]) => {
@@ -27,7 +27,7 @@ macro_rules! impl_process_event_fns {
         }
     };
 
-    (@object fn $peidx:expr) => { <Self as $crate::UObjectLike<$peidx>>::as_uobject(self) };
+    (@object fn $peidx:expr) => { <Self as $crate::UObjectExt<$peidx>>::as_uobject(self) };
     (@object static $peidx:expr) => { <Self as $crate::UObjectLike<$peidx>>::static_class() };
 
     (@retval $args:ident) => { () };

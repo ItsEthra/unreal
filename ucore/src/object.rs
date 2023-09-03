@@ -93,9 +93,50 @@ impl<const PEIDX: usize> DerefMut for UClass<PEIDX> {
 /// * Must only implemented for unreal engine UObjects
 pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
     fn static_class() -> Ptr<UClass<PEIDX>>;
+}
 
+pub unsafe trait UObjectExt<const PEIDX: usize>: UObjectLike<PEIDX> {
+    fn is<T: UObjectLike<PEIDX>>(&self) -> bool;
+
+    fn cast_ref<T: UObjectLike<PEIDX>>(&self) -> Option<&T>;
+    unsafe fn cast_ref_unchecked<T: UObjectLike<PEIDX>>(&self) -> &T;
+
+    fn cast_mut<T: UObjectLike<PEIDX>>(&mut self) -> Option<&mut T>;
+    unsafe fn cast_mut_unchecked<T: UObjectLike<PEIDX>>(&mut self) -> &mut T;
+
+    fn from_uobject(object: Ptr<UObject<PEIDX>>) -> Option<Ptr<Self>>;
+    unsafe fn from_uobject_unchecked(object: Ptr<UObject<PEIDX>>) -> Ptr<Self>;
+
+    fn as_uobject(&self) -> Ptr<UObject<PEIDX>>;
+}
+
+unsafe impl<const PEIDX: usize, O: UObjectLike<PEIDX>> UObjectExt<PEIDX> for O {
     fn is<T: UObjectLike<PEIDX>>(&self) -> bool {
         self.as_uobject().class.is(T::static_class())
+    }
+
+    fn cast_ref<T: UObjectLike<PEIDX>>(&self) -> Option<&T> {
+        if self.is::<T>() {
+            Some(unsafe { &*(self as *const Self as *const T) })
+        } else {
+            None
+        }
+    }
+
+    unsafe fn cast_ref_unchecked<T: UObjectLike<PEIDX>>(&self) -> &T {
+        unsafe { &*(self as *const Self as *const T) }
+    }
+
+    fn cast_mut<T: UObjectLike<PEIDX>>(&mut self) -> Option<&mut T> {
+        if self.is::<T>() {
+            Some(unsafe { &mut *(self as *mut Self as *mut T) })
+        } else {
+            None
+        }
+    }
+
+    unsafe fn cast_mut_unchecked<T: UObjectLike<PEIDX>>(&mut self) -> &mut T {
+        unsafe { &mut *(self as *mut Self as *mut T) }
     }
 
     fn from_uobject(object: Ptr<UObject<PEIDX>>) -> Option<Ptr<Self>> {
@@ -104,6 +145,10 @@ pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
         } else {
             None
         }
+    }
+
+    unsafe fn from_uobject_unchecked(object: Ptr<UObject<PEIDX>>) -> Ptr<O> {
+        Ptr(object.0.cast::<Self>())
     }
 
     fn as_uobject(&self) -> Ptr<UObject<PEIDX>> {
