@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use log::{info, warn, LevelFilter};
-use memflex::external::{find_window, find_window_process_thread, OwnedProcess};
+use memflex::external::OwnedProcess;
 use petgraph::dot;
 use std::{
     collections::HashMap,
@@ -50,10 +50,18 @@ fn parse_hex_arg(arg: &str) -> Result<usize> {
 }
 
 fn get_process_id(arg_id: Option<u32>) -> Result<u32> {
+    #[cfg(windows)]
     let find = || {
-        let window = find_window("UnrealWindow".into(), None)?;
-        let (pid, _) = find_window_process_thread(window)?;
+        let window = memflex::external::find_window("UnrealWindow".into(), None)?;
+        let (pid, _) = memflex::external::find_window_process_thread(window)?;
         Result::Ok(pid)
+    };
+
+    #[cfg(unix)]
+    let find = || {
+        Err(anyhow!(
+            "Window lookup is not supported on unix, you must specify process id"
+        ))
     };
 
     if let Some(id) = arg_id {
