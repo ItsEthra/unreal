@@ -10,5 +10,5 @@ repository.workspace = true
 [dependencies]
 bitflags = "2.4.0"
 once_cell = "1.18.0"
-memflex = { version = "0.7.0", default-features = false }
+memflex = { version = "0.8.0", default-features = false }
 twox-hash = { version = "1.6.3", default-features = false }

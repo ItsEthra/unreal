@@ -1,6 +1,6 @@
 use crate::{assert_size, FName, GlobalContext, HashedFqn, Ptr};
 use bitflags::bitflags;
-use memflex::offset_of;
+use memflex::assert_offset;
 use std::{
     iter::successors,
     ops::{Deref, DerefMut},
@@ -62,7 +62,7 @@ pub struct UClass<const PEIDX: usize> {
     _pad_0x40: [u8; 0x10],
     super_struct: Option<Ptr<Self>>,
 }
-const _: () = assert!(offset_of!(UClass<0>, super_struct) == 0x40);
+assert_offset!(UClass<0>, super_struct, 0x40);
 
 impl<const PEIDX: usize> UClass<PEIDX> {
     pub fn is(&self, class: Ptr<Self>) -> bool {
@@ -171,8 +171,6 @@ pub struct UObject<const PEIDX: usize> {
     outer: Option<Ptr<Self>>,
 }
 assert_size!(UObject<0>, 0x28);
-
-impl<const PEIDX: usize> memflex::Cast for UObject<PEIDX> {}
 
 unsafe impl<const PEIDX: usize> Send for UObject<PEIDX> {}
 unsafe impl<const PEIDX: usize> Sync for UObject<PEIDX> {}

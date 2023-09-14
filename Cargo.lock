@@ -141,7 +141,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
- "memflex",
+ "memflex 0.7.0",
  "petgraph",
  "toml",
  "uedumper",
@@ -280,6 +280,17 @@ dependencies = [
  "obfstr",
  "paste",
  "windows",
+]
+
+[[package]]
+name = "memflex"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "412a2077f556847d580b42b87e73e1836317489c46fbe614856b1e576849ed4f"
+dependencies = [
+ "bitflags",
+ "obfstr",
+ "paste",
 ]
 
 [[package]]
@@ -489,7 +500,7 @@ name = "ucore"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "memflex",
+ "memflex 0.8.0",
  "once_cell",
  "twox-hash",
 ]
