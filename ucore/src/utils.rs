@@ -107,7 +107,7 @@ impl<T: ?Sized> DerefMut for Ptr<T> {
 
 const FQN_LEN: usize = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct HashedFqn(pub(crate) [u32; FQN_LEN]);
 

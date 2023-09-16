@@ -58,14 +58,10 @@ macro_rules! impl_process_event_fns {
                         $($arg_name: $arg_ty),*
                     )-> $crate::impl_process_event_fns!(@retty $($result $($ret_name: $ret_ty),*)? )
                     {
-                        use $crate::Ptr;
-
-                        static mut FUNCTION: Option<Ptr<$crate::UObject>> = None;
+                        use $crate::Cache;
 
                         unsafe {
-                            if FUNCTION.is_none() {
-                                FUNCTION = Some($crate::UObject::get_by_fqn($crate::fqn!(#$fqn).hash()).expect("failed to find the object"));
-                            }
+                            let function = (*$crate::DEFAULT_CACHE).lookup(&$crate::fqn!(#$fqn).hash());
 
                             #[repr(C)]
                             struct Args {
@@ -74,7 +70,7 @@ macro_rules! impl_process_event_fns {
 
                             let mut args: Args = ::std::mem::zeroed();
                             $(args.$arg_name = $arg_name;)*
-                            obj.process_event($peidx, FUNCTION.unwrap(), &mut args);
+                            obj.process_event($peidx, function, &mut args);
                             $crate::impl_process_event_fns!(@retval args $($result $($ret_name: $ret_ty),*)?)
                         }
                     }
@@ -89,16 +85,10 @@ macro_rules! impl_uobject_like {
     ($target:ty, $fqn:expr) => {
         unsafe impl $crate::UObjectLike for $target {
             fn static_class() -> $crate::Ptr<$crate::UClass> {
-                unsafe {
-                    static mut CLASS: Option<$crate::Ptr<$crate::UClass>> = None;
+                use $crate::Cache;
 
-                    if CLASS.is_none() {
-                        let hash = $crate::Fqn::from_human_readable($fqn).hash();
-                        CLASS = $crate::UObject::get_by_fqn(hash).map(|p| p.cast());
-                    }
-
-                    CLASS.expect("Failed to find the object")
-                }
+                let class = (*$crate::DEFAULT_CACHE).lookup(&$crate::fqn!(#$fqn).hash());
+                class.cast()
             }
         }
     };
