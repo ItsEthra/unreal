@@ -92,17 +92,17 @@ edition.workspace = true
 path = "lib.rs"
 
 [dependencies]
+uproxy.workspace = true
 "#;
 
-        writeln!(&mut workspace, "{EPILOG}")?;
-        for pkg in sdk.packages.node_weights().map(|v| &*v.ident) {
-            writeln!(
-                &mut workspace,
-                "{pkg} = {{ workspace = true, optional = true }}"
-            )?;
+        writeln!(workspace, "{EPILOG}")?;
+        writeln!(lib, "pub use uproxy;")?;
 
-            writeln!(&mut lib, "#[cfg(feature = \"{pkg}\")]")?;
-            writeln!(&mut lib, "pub use {pkg};")?;
+        for pkg in sdk.packages.node_weights().map(|v| &*v.ident) {
+            writeln!(workspace, "{pkg} = {{ workspace = true, optional = true }}")?;
+
+            writeln!(lib, "#[cfg(feature = \"{pkg}\")]")?;
+            writeln!(lib, "pub use {pkg};")?;
         }
 
         Ok(())
@@ -115,12 +115,18 @@ impl RustCodegen<'_> {
         fs::create_dir_all(&proxy)?;
 
         let cargo = proxy.join("Cargo.toml");
-        let lib = proxy.join("lib.rs");
+        let lib = proxy.join("uproxy.rs");
 
         const CARGO: &str = r#"[package]
 name = "uproxy"
 version.workspace = true
-edition.workspace = true  
+edition.workspace = true 
+
+[lib]
+path = "uproxy.rs"
+
+[dependencies]
+glam.workspace = true
 "#;
 
         let mut cargo = fs::OpenOptions::new()
@@ -139,9 +145,56 @@ edition.workspace = true
         let config = &State::get().config;
         writeln!(
             lib,
-            "pub const PROCESS_EVENT_INDEX: usize = {:#X};",
+            "pub const PROCESS_EVENT_INDEX: usize = {:#X};\n",
             config.process_event
         )?;
+
+        let wide = self
+            .sdk
+            .lookup(&fqn!(CoreUObject.Vector))
+            .unwrap()
+            .ptr
+            .layout()
+            .size
+            == size_of::<f64>() * 3;
+
+        if self.options.glam {
+            let reexports = if wide {
+                r#"pub use glam::{
+    DVec2 as FVector2,
+    DVec2 as FVector2d,
+    Vec2 as FVector2f,
+    DVec3 as FVector,
+    DVec3 as FVector3,
+    DVec3 as FVector3d,
+    Vec3 as FVector3f,
+    DVec4 as FVector4,
+    DVec4 as FVector4d,
+    Vec4 as FVector4f,
+    DMat4 as FMatrix,
+    Mat4 as FMatrix44f,
+    DMat4 as FMatrix44d,
+};"#
+            } else {
+                r#"pub use glam::{
+    Vec2 as FVector2,
+    DVec2 as FVector2d,
+    Vec2 as FVector2f,
+    Vec3 as FVector,
+    DVec3 as FVector3,
+    DVec3 as FVector3d,
+    Vec3 as FVector3f,
+    Vec4 as FVector4,
+    DVec4 as FVector4d,
+    Vec4 as FVector4f,
+    Mat4 as FMatrix,
+    Mat4 as FMatrix44f,
+    DMat4 as FMatrix44d,
+};"#
+            };
+
+            lib.write_all(reexports.as_bytes())?;
+        }
 
         Ok(())
     }
@@ -205,19 +258,20 @@ edition.workspace = true
 
 [lib]
 path = "%.rs"
-
 "#;
 
         cargo.write_all(PACKAGE.replace('%', &pkg.ident).as_bytes())?;
 
         writeln!(
             &mut cargo,
-            r#"[dependencies]
+            r#"
+[dependencies]
 memflex.workspace = true
 uproxy.workspace = true
-ucore.workspace = true
-"#
+ucore.workspace = true"#
         )?;
+
+        writeln!(cargo)?;
 
         for dep in self
             .sdk
@@ -290,9 +344,9 @@ ucore.workspace = true
             return Ok(());
         }
 
-        if self.generate_glam(w, ustruct)? {
-            return Ok(());
-        }
+        // if self.skip_glam(ustruct) {
+        //     return Ok(());
+        // }
 
         writeln!(w, "memflex::makestruct! {{")?;
         writeln!(
@@ -312,10 +366,10 @@ ucore.workspace = true
 
         if let Some(ref parent_fqn) = parent {
             let (Object::Class(parent) | Object::Struct(parent)) =
-            &*self.sdk.lookup(parent_fqn).unwrap().ptr
-        else {
-            unreachable!()
-        };
+                &*self.sdk.lookup(parent_fqn).unwrap().ptr
+            else {
+                unreachable!()
+            };
 
             offset = parent
                 .shrink
@@ -334,16 +388,17 @@ ucore.workspace = true
             )?;
 
             let chain = successors(Some(*parent_fqn), |fqn| {
-            let (Object::Class(parent) | Object::Struct(parent)) = &*self.sdk.lookup(fqn).unwrap().ptr
-            else {
-                unreachable!()
-            };
+                let (Object::Class(parent) | Object::Struct(parent)) =
+                    &*self.sdk.lookup(fqn).unwrap().ptr
+                else {
+                    unreachable!()
+                };
 
-            parent.parent
-        })
-        .map(|fqn| self.sdk.lookup(&fqn).unwrap().ptr.ident())
-        .collect::<Vec<_>>()
-        .join(" -> ");
+                parent.parent
+            })
+            .map(|fqn| self.sdk.lookup(&fqn).unwrap().ptr.ident())
+            .collect::<Vec<_>>()
+            .join(" -> ");
             writeln!(w, "    // Inheritance: {chain}")?;
 
             writeln!(w, "    pub struct {ident} : pub {} {{", &parent.ident)?;
@@ -368,8 +423,8 @@ ucore.workspace = true
                         },
                 } => {
                     let Some(repr) = self.stringify_type(kind, PointerMode::Ptr) else {
-                    continue;
-                };
+                        continue;
+                    };
 
                     let total_size = *elem_size * *array_dim;
                     if *field_offset > offset {
@@ -473,87 +528,31 @@ ucore.workspace = true
         Ok(())
     }
 
-    #[rustfmt::skip]
-    fn generate_glam(&self, w: &mut dyn WriteIo, ustruct: &Struct) -> Result<bool> {
-        let wide = self.sdk.lookup(&fqn!(CoreUObject.Vector)).unwrap().ptr.layout().size == size_of::<f64>() * 3;
+    // fn skip_glam(&self, ustruct: &Struct) -> bool {
+    //     if !self.options.glam {
+    //         return false;
+    //     }
 
-        macro_rules! reexport {
-            ($text:expr) => {{
-                writeln!(w, "pub use glam::{};", $text)?;
-                return Ok(true);
-            }};
-        }
-
-        if ustruct.fqn == fqn!(CoreUObject.Vector) {
-            match wide {
-                true => reexport!("DVec3"),
-                false => reexport!("Vec3"),
-            }
-        }
-        else if ustruct.fqn == fqn!(CoreUObject.Vector2) {
-            match wide {
-                true => reexport!("DVec2"),
-                false => reexport!("Vec2"),
-            }
-        }
-        else if ustruct.fqn == fqn!(CoreUObject.Vector3) {
-            match wide {
-                true => reexport!("DVec3"),
-                false => reexport!("Vec3"),
-            }
-        }
-        else if ustruct.fqn == fqn!(CoreUObject.Vector4) {
-            match wide {
-                true => reexport!("DVec4"),
-                false => reexport!("Vec4"),
-            }
-        }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix) {
-            match wide {
-                true => reexport!("DMat4"),
-                false => reexport!("Mat4"),
-            }
-        }
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix2) {
-            match wide {
-                true => reexport!("DMat2"),
-                false => reexport!("Mat2"),
-            }
-        }
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix3) {
-            match wide {
-                true => reexport!("DMat3"),
-                false => reexport!("Mat3"),
-            }
-        }
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix4) {
-            match wide {
-                true => reexport!("DMat4"),
-                false => reexport!("Mat4"),
-            }
-        }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Vector2d) { reexport!("DVec2") }
-        else if ustruct.fqn == fqn!(CoreUObject.Vector2f) { reexport!("Vec2") }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Vector3d) { reexport!("DVec3") }
-        else if ustruct.fqn == fqn!(CoreUObject.Vector3f) { reexport!("Vec3") }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Vector4d) { reexport!("DVec4") }
-        else if ustruct.fqn == fqn!(CoreUObject.Vector4f) { reexport!("Vec4") }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix2d) { reexport!("DMat2") }
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix2f) { reexport!("Mat2") }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix3d) { reexport!("DMat3") }
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix3f) { reexport!("Mat3") }
-
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix4d) { reexport!("DMat4") }
-        else if ustruct.fqn == fqn!(CoreUObject.Matrix4f) { reexport!("Mat4") }
-
-        return Ok(false);
-    }
+    //     let skip = [
+    //         fqn!(CoreUObject.Matrix),
+    //         fqn!(CoreUObject.Matrix44d),
+    //         fqn!(CoreUObject.Matrix44f),
+    //         fqn!(CoreUObject.Vector),
+    //         fqn!(CoreUObject.Vector3),
+    //         fqn!(CoreUObject.Vector2),
+    //         fqn!(CoreUObject.Vector4),
+    //         fqn!(CoreUObject.Vector2d),
+    //         fqn!(CoreUObject.Vector2f),
+    //         fqn!(CoreUObject.Vector3d),
+    //         fqn!(CoreUObject.Vector3f),
+    //         fqn!(CoreUObject.Vector4d),
+    //         fqn!(CoreUObject.Vector4f),
+    //         fqn!(CoreUObject.Plane),
+    //         fqn!(CoreUObject.Plane4d),
+    //         fqn!(CoreUObject.Plane4f),
+    //     ];
+    //     skip.contains(&ustruct.fqn)
+    // }
 
     fn write_function(
         &self,
@@ -684,6 +683,39 @@ ucore.workspace = true
             }
             PropertyKind::Inline(inner) => {
                 let object = self.sdk.lookup(inner).unwrap();
+                if self.options.glam {
+                    let inner = *inner;
+                    let proxy = if inner == fqn!(CoreUObject.Matrix) {
+                        "uproxy::FMatrix"
+                    } else if inner == fqn!(CoreUObject.Vector) {
+                        "uproxy::FVector"
+                    } else if inner == fqn!(CoreUObject.Vector3) {
+                        "uproxy::FVector3"
+                    } else if inner == fqn!(CoreUObject.Vector2) {
+                        "uproxy::FVector2"
+                    } else if inner == fqn!(CoreUObject.Vector4) {
+                        "uproxy::FVector4"
+                    } else if inner == fqn!(CoreUObject.Vector2d) {
+                        "uproxy::FVector2d"
+                    } else if inner == fqn!(CoreUObject.Vector2f) {
+                        "uproxy::FVector2f"
+                    } else if inner == fqn!(CoreUObject.Vector3d) {
+                        "uproxy::FVector3d"
+                    } else if inner == fqn!(CoreUObject.Vector3f) {
+                        "uproxy::FVector3f"
+                    } else if inner == fqn!(CoreUObject.Vector4d) {
+                        "uproxy::FVector4d"
+                    } else if inner == fqn!(CoreUObject.Vector4f) {
+                        "uproxy::FVector4f"
+                    } else {
+                        ""
+                    };
+
+                    if proxy != "" {
+                        return Some(proxy.into());
+                    }
+                }
+
                 object.ptr.ident().to_owned().into()
             }
             PropertyKind::Array { kind, size } => {

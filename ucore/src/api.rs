@@ -1,4 +1,5 @@
 use std::{
+    alloc::{alloc, Layout},
     char::decode_utf16,
     fmt,
     marker::PhantomData,
@@ -52,14 +53,41 @@ impl<T> From<Vec<T>> for TArray<T> {
     }
 }
 
+impl<T: Clone> Clone for TArray<T> {
+    fn clone(&self) -> Self {
+        if let Some(ptr) = self.ptr {
+            unsafe {
+                let data = alloc(Layout::array::<T>(self.len as usize).unwrap()).cast::<T>();
+                if !data.is_null() {
+                    data.copy_from_nonoverlapping(ptr.as_ptr(), self.len as usize);
+                }
+
+                Self {
+                    ptr: NonNull::new(data),
+                    len: self.len,
+                    capacity: self.capacity,
+                }
+            }
+        } else {
+            Self {
+                ptr: None,
+                len: 0,
+                capacity: 0,
+            }
+        }
+    }
+}
+
 impl<T> Drop for TArray<T> {
     fn drop(&mut self) {
         unsafe {
-            drop(Vec::from_raw_parts(
-                self.ptr.map(|p| p.as_ptr()).unwrap_or(0 as _),
-                self.len as usize,
-                self.capacity as usize,
-            ));
+            if let Some(ptr) = self.ptr {
+                drop(Vec::from_raw_parts(
+                    ptr.as_ptr(),
+                    self.len as usize,
+                    self.capacity as usize,
+                ));
+            }
         }
     }
 }
@@ -80,6 +108,7 @@ impl<T> DerefMut for TArray<T> {
     }
 }
 
+#[derive(Clone)]
 #[repr(transparent)]
 pub struct FString {
     data: TArray<u16>,
