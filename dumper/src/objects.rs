@@ -1,8 +1,7 @@
-use std::mem::size_of;
-
 use crate::{engine::UObjectPtr, State};
 use anyhow::Result;
 use log::{info, trace};
+use std::mem::size_of;
 
 const NUM_ELEMENTS_PER_CHUNK: usize = 64 * 1024;
 

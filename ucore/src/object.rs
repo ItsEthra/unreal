@@ -219,7 +219,7 @@ impl UObject {
     pub fn eq_fqn(&self, hash: HashedFqn) -> bool {
         let namepool = GlobalContext::get().name_pool();
         successors(Some(Ptr::from_ref(self)), |obj| obj.outer)
-            .map(|obj| namepool.resolve(obj.name.index()))
+            .map(|obj| namepool.resolve(obj.name.index))
             .enumerate()
             .all(|(i, entry)| hash.0[i] == entry.hash())
     }

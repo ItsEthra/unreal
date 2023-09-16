@@ -1,3 +1,8 @@
+#[cfg(all(feature = "parking_lot", feature = "spin"))]
+compile_error!("Only one of `parking_lot` and `spin` features must be enabled");
+#[cfg(all(not(feature = "parking_lot"), not(feature = "spin")))]
+compile_error!("Either `parking_lot` or `spin` feature must be enabled");
+
 mod macros;
 
 mod cache;

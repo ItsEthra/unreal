@@ -1,13 +1,15 @@
 use crate::GlobalContext;
+use once_cell::sync::Lazy;
 use std::{
     borrow::Cow,
+    collections::HashMap,
     fmt::{self, Debug, Display},
     hash::Hasher,
     marker::PhantomData,
     mem::size_of,
     str::from_utf8_unchecked,
 };
-use twox_hash::XxHash32;
+use twox_hash::{XxHash32, XxHash64};
 
 // const FNAME_MAX_BLOCK_BITS: u32 = 13;
 const FNAME_BLOCK_OFFSET_BITS: u32 = 16;
@@ -112,10 +114,8 @@ impl FNameEntry {
                 .unwrap_or(usize::MAX)
                 .wrapping_add(1);
             let mut hash = XxHash32::default();
-            for char in char::decode_utf16(data[i..].iter().copied())
-                .map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER))
-            {
-                hash.write_u32(char as u32);
+            for char in char::decode_utf16(data[i..].iter().copied()) {
+                hash.write_u32(char.expect("Broken UTF-16") as u32);
             }
             hash.finish() as u32
         } else {
@@ -151,12 +151,13 @@ impl PartialEq<str> for FNameEntry {
     }
 }
 
-type FNameEntryId = u32;
+pub type FNameEntryId = u32;
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct FNameEntryHandle {
-    block: u32,
-    offset: u32,
+    pub block: u32,
+    pub offset: u32,
 }
 
 impl From<FNameEntryId> for FNameEntryHandle {
@@ -169,10 +170,23 @@ impl From<FNameEntryId> for FNameEntryHandle {
     }
 }
 
+impl From<FNameEntryHandle> for FNameEntryId {
+    fn from(value: FNameEntryHandle) -> Self {
+        value.block << FNAME_BLOCK_OFFSET_BITS | value.offset & (FNAME_BLOCK_OFFSETS - 1)
+    }
+}
+
 #[repr(C)]
 pub struct FNamePool(PhantomData<()>);
 
 impl FNamePool {
+    #[allow(unreachable_code)]
+    pub fn iter(&self) -> impl Iterator<Item = (FNameEntry, FNameEntryHandle)> {
+        todo!();
+
+        [].into_iter()
+    }
+
     pub fn resolve(&self, handle: impl Into<FNameEntryHandle>) -> &FNameEntry {
         let FNameEntryHandle { block, offset } = handle.into();
         unsafe {
@@ -191,19 +205,66 @@ impl FNamePool {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct FName([u8; 8]);
+pub struct FName {
+    pub index: FNameEntryId,
+    number: u32,
+}
 
-impl FName {
-    pub fn index(&self) -> FNameEntryId {
-        unsafe { (self as *const Self).cast::<FNameEntryId>().read() }
+impl From<FName> for FNameEntryId {
+    #[inline]
+    fn from(value: FName) -> Self {
+        value.index
     }
 }
+
+impl From<FNameEntryId> for FName {
+    #[inline]
+    fn from(number: FNameEntryId) -> Self {
+        Self { number, index: 0 }
+    }
+}
+
+impl FName {
+    pub fn lookup(name: &str) -> Option<FName> {
+        let mut hasher = XxHash64::default();
+        hasher.write(name.as_bytes());
+        let result = hasher.finish();
+
+        let mut lock = DEFAULT_NAME_CACHE.lock();
+
+        let maybe_name = lock.get(&result);
+        if maybe_name.is_some() {
+            return maybe_name.copied();
+        }
+
+        let entry: FNameEntryId = GlobalContext::get()
+            .name_pool()
+            .iter()
+            .find_map(|(entry, handle)| (entry == *name).then_some(handle))
+            .map(Into::into)?;
+        let name: FName = entry.into();
+        lock.insert(result, name);
+
+        Some(name)
+    }
+
+    pub fn flush_cache(&self) {
+        DEFAULT_NAME_CACHE.lock().clear();
+    }
+}
+
+#[cfg(feature = "parking_lot")]
+use parking_lot::Mutex;
+#[cfg(feature = "spin")]
+use spin::Mutex;
+
+static DEFAULT_NAME_CACHE: Lazy<Mutex<HashMap<u64, FName>>> = Lazy::new(|| Default::default());
 
 impl Display for FName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = GlobalContext::get()
             .name_pool()
-            .resolve(self.index())
+            .resolve(self.index)
             .to_str();
 
         write!(f, "{text}")
