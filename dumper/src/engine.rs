@@ -8,9 +8,9 @@ macro_rules! mkfn {
     ($field:ident $kind:ident, = $offset:expr) => {
         #[allow(clippy::redundant_closure_call)]
         pub fn $field(&self) -> Result<$kind> {
-            Ok(State::get()
+            State::get()
                 .external
-                .read(self.0 + ($offset)(&State::get().config))?)
+                .read(self.0 + ($offset)(&State::get().config))
         }
     };
 
@@ -124,7 +124,7 @@ impl UEnumPtr {
             config: offsets,
             ..
         } = State::get();
-        Ok(proc.read::<TArray>(self.0 + offsets.uenum.names)?)
+        proc.read::<TArray>(self.0 + offsets.uenum.names)
     }
 }
 
@@ -252,7 +252,7 @@ impl TArray {
 
 impl FNamePtr {
     pub fn read(&self) -> Result<u32> {
-        Ok(State::get().external.read(self.0)?)
+        State::get().external.read(self.0)
     }
 
     pub(crate) fn get(&self) -> Result<&'static str> {

@@ -16,14 +16,14 @@ macro_rules! impl_process_event_fns {
         pub fn $name(&mut self, $($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!(@retty $($result $($ret_name: $ret_ty),*)? ) {
             $($body)*
 
-            inner(<Self as $crate::UObjectExt<$peidx>>::as_uobject(self), $($arg_name),*)
+            inner(<Self as $crate::UObjectExt>::as_uobject(self), $($arg_name),*)
         }
     };
     (@fnbody $peidx:tt static $name:ident $($arg_name:ident $arg_ty:ty),*; $($result:ident $($ret_name:ident $ret_ty:ty),*)? [$($body:tt)*]) => {
         pub fn $name($($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!(@retty $($result $($ret_name: $ret_ty),*)? ) {
             $($body)*
 
-            inner(<Self as $crate::UObjectLike<$peidx>>::static_class().cast(), $($arg_name),*)
+            inner(<Self as $crate::UObjectLike>::static_class().cast(), $($arg_name),*)
         }
     };
 
@@ -53,10 +53,14 @@ macro_rules! impl_process_event_fns {
             $(
                 $crate::impl_process_event_fns!(@fnbody $peidx $kind $fname $($arg_name $arg_ty),*; $($result $($ret_name $ret_ty),*)? [
                     #[inline(always)]
-                    fn inner(mut obj: $crate::Ptr<$crate::UObject<$peidx>>, $($arg_name: $arg_ty),*) -> $crate::impl_process_event_fns!(@retty $($result $($ret_name: $ret_ty),*)? ) {
+                    fn inner(
+                        mut obj: $crate::Ptr<$crate::UObject>,
+                        $($arg_name: $arg_ty),*
+                    )-> $crate::impl_process_event_fns!(@retty $($result $($ret_name: $ret_ty),*)? )
+                    {
                         use $crate::Ptr;
 
-                        static mut FUNCTION: Option<Ptr<$crate::UObject<$peidx>>> = None;
+                        static mut FUNCTION: Option<Ptr<$crate::UObject>> = None;
 
                         unsafe {
                             if FUNCTION.is_none() {
@@ -70,7 +74,7 @@ macro_rules! impl_process_event_fns {
 
                             let mut args: Args = ::std::mem::zeroed();
                             $(args.$arg_name = $arg_name;)*
-                            obj.process_event(FUNCTION.unwrap(), &mut args);
+                            obj.process_event($peidx, FUNCTION.unwrap(), &mut args);
                             $crate::impl_process_event_fns!(@retval args $($result $($ret_name: $ret_ty),*)?)
                         }
                     }
@@ -82,15 +86,15 @@ macro_rules! impl_process_event_fns {
 
 #[macro_export]
 macro_rules! impl_uobject_like {
-    ($target:ty, $peidx:expr, $fqn:expr) => {
-        unsafe impl $crate::UObjectLike<{ $peidx }> for $target {
-            fn static_class() -> $crate::Ptr<$crate::UClass<{ $peidx }>> {
+    ($target:ty, $fqn:expr) => {
+        unsafe impl $crate::UObjectLike for $target {
+            fn static_class() -> $crate::Ptr<$crate::UClass> {
                 unsafe {
-                    static mut CLASS: Option<$crate::Ptr<$crate::UClass<{ $peidx }>>> = None;
+                    static mut CLASS: Option<$crate::Ptr<$crate::UClass>> = None;
 
                     if CLASS.is_none() {
                         let hash = $crate::Fqn::from_human_readable($fqn).hash();
-                        CLASS = $crate::UObject::<{ $peidx }>::get_by_fqn(hash).map(|p| p.cast());
+                        CLASS = $crate::UObject::get_by_fqn(hash).map(|p| p.cast());
                     }
 
                     CLASS.expect("Failed to find the object")
@@ -101,7 +105,7 @@ macro_rules! impl_uobject_like {
 }
 
 struct Foo;
-impl_uobject_like!(Foo, 0x4D, "CoreUObject.Foo");
+impl_uobject_like!(Foo, "CoreUObject.Foo");
 impl_process_event_fns!(
     [Foo, 0x4D]
 

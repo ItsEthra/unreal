@@ -359,11 +359,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
 
     writeln!(w, "    }}\n}}\n")?;
     if *is_uobject {
-        writeln!(
-            w,
-            "impl_uobject_like!({ident}, {:#X}, \"{fqn}\");\n",
-            config.process_event
-        )?;
+        writeln!(w, "impl_uobject_like!({ident}, \"{fqn}\");\n",)?;
     }
 
     if !bitfields.is_empty() {

@@ -1,6 +1,5 @@
 use crate::{assert_size, FName, GlobalContext, HashedFqn, Ptr};
 use bitflags::bitflags;
-use memflex::assert_offset;
 use std::{
     iter::successors,
     ops::{Deref, DerefMut},
@@ -27,11 +26,11 @@ pub struct FChunkedFixedUObjectArray {
 }
 
 impl FChunkedFixedUObjectArray {
-    pub fn iter<const PEIDX: usize>(&self) -> impl Iterator<Item = Ptr<UObject<PEIDX>>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Ptr<UObject>> + '_ {
         (0..self.num_elems).flat_map(|i| self.nth(i)).fuse()
     }
 
-    pub fn nth<const PEIDX: usize>(&self, idx: u32) -> Option<Ptr<UObject<PEIDX>>> {
+    pub fn nth(&self, idx: u32) -> Option<Ptr<UObject>> {
         const NUM_ELEMS_PER_CHUNK: usize = 64 * 1024;
 
         let chunk_idx = idx as usize / NUM_ELEMS_PER_CHUNK;
@@ -47,7 +46,7 @@ impl FChunkedFixedUObjectArray {
         Some(Ptr(object))
     }
 
-    pub fn by_fqn<const PEIDX: usize>(&self, hash: HashedFqn) -> Option<Ptr<UObject<PEIDX>>> {
+    pub fn by_fqn(&self, hash: HashedFqn) -> Option<Ptr<UObject>> {
         GlobalContext::get()
             .chunked_fixed_uobject_array()
             .iter()
@@ -56,15 +55,14 @@ impl FChunkedFixedUObjectArray {
 }
 
 #[allow(dead_code)]
-pub struct UClass<const PEIDX: usize> {
-    object: UObject<PEIDX>,
+pub struct UClass {
+    object: UObject,
     next: *const (),
     _pad_0x40: [u8; 0x10],
     super_struct: Option<Ptr<Self>>,
 }
-assert_offset!(UClass<0>, super_struct, 0x40);
 
-impl<const PEIDX: usize> UClass<PEIDX> {
+impl UClass {
     pub fn is(&self, class: Ptr<Self>) -> bool {
         successors(Some(Ptr::from_ref(self)), |class| class.super_struct).any(|ptr| ptr == class)
     }
@@ -75,47 +73,57 @@ impl<const PEIDX: usize> UClass<PEIDX> {
     }
 }
 
-impl<const PEIDX: usize> Deref for UClass<PEIDX> {
-    type Target = UObject<PEIDX>;
+impl Deref for UClass {
+    type Target = UObject;
 
     fn deref(&self) -> &Self::Target {
         &self.object
     }
 }
 
-impl<const PEIDX: usize> DerefMut for UClass<PEIDX> {
+impl DerefMut for UClass {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.object
     }
 }
 
+/// UObject trait for unreal engine objects
 /// # Safety
 /// * Must only implemented for unreal engine UObjects
-pub unsafe trait UObjectLike<const PEIDX: usize>: Sized {
-    fn static_class() -> Ptr<UClass<PEIDX>>;
+pub unsafe trait UObjectLike: Sized {
+    fn static_class() -> Ptr<UClass>;
 }
 
-pub unsafe trait UObjectExt<const PEIDX: usize>: UObjectLike<PEIDX> {
-    fn is<T: UObjectLike<PEIDX>>(&self) -> bool;
+/// Helper functions for convenient use of UObjects
+/// # Safety
+/// See [`UObjectLike`]
+pub unsafe trait UObjectExt: UObjectLike {
+    fn is<T: UObjectLike>(&self) -> bool;
 
-    fn cast_ref<T: UObjectLike<PEIDX>>(&self) -> Option<&T>;
-    unsafe fn cast_ref_unchecked<T: UObjectLike<PEIDX>>(&self) -> &T;
+    fn cast_ref<T: UObjectLike>(&self) -> Option<&T>;
+    /// # Safety
+    /// * Inheritance rules apply
+    unsafe fn cast_ref_unchecked<T: UObjectLike>(&self) -> &T;
 
-    fn cast_mut<T: UObjectLike<PEIDX>>(&mut self) -> Option<&mut T>;
-    unsafe fn cast_mut_unchecked<T: UObjectLike<PEIDX>>(&mut self) -> &mut T;
+    fn cast_mut<T: UObjectLike>(&mut self) -> Option<&mut T>;
+    /// # Safety
+    /// * Inheritance rules apply
+    unsafe fn cast_mut_unchecked<T: UObjectLike>(&mut self) -> &mut T;
 
-    fn from_uobject(object: Ptr<UObject<PEIDX>>) -> Option<Ptr<Self>>;
-    unsafe fn from_uobject_unchecked(object: Ptr<UObject<PEIDX>>) -> Ptr<Self>;
+    fn from_uobject(object: Ptr<UObject>) -> Option<Ptr<Self>>;
+    /// # Safety
+    /// * Inheritance rules apply
+    unsafe fn from_uobject_unchecked(object: Ptr<UObject>) -> Ptr<Self>;
 
-    fn as_uobject(&self) -> Ptr<UObject<PEIDX>>;
+    fn as_uobject(&self) -> Ptr<UObject>;
 }
 
-unsafe impl<const PEIDX: usize, O: UObjectLike<PEIDX>> UObjectExt<PEIDX> for O {
-    fn is<T: UObjectLike<PEIDX>>(&self) -> bool {
+unsafe impl<O: UObjectLike> UObjectExt for O {
+    fn is<T: UObjectLike>(&self) -> bool {
         self.as_uobject().class.is(T::static_class())
     }
 
-    fn cast_ref<T: UObjectLike<PEIDX>>(&self) -> Option<&T> {
+    fn cast_ref<T: UObjectLike>(&self) -> Option<&T> {
         if self.is::<T>() {
             Some(unsafe { &*(self as *const Self as *const T) })
         } else {
@@ -123,11 +131,11 @@ unsafe impl<const PEIDX: usize, O: UObjectLike<PEIDX>> UObjectExt<PEIDX> for O {
         }
     }
 
-    unsafe fn cast_ref_unchecked<T: UObjectLike<PEIDX>>(&self) -> &T {
+    unsafe fn cast_ref_unchecked<T: UObjectLike>(&self) -> &T {
         unsafe { &*(self as *const Self as *const T) }
     }
 
-    fn cast_mut<T: UObjectLike<PEIDX>>(&mut self) -> Option<&mut T> {
+    fn cast_mut<T: UObjectLike>(&mut self) -> Option<&mut T> {
         if self.is::<T>() {
             Some(unsafe { &mut *(self as *mut Self as *mut T) })
         } else {
@@ -135,11 +143,11 @@ unsafe impl<const PEIDX: usize, O: UObjectLike<PEIDX>> UObjectExt<PEIDX> for O {
         }
     }
 
-    unsafe fn cast_mut_unchecked<T: UObjectLike<PEIDX>>(&mut self) -> &mut T {
+    unsafe fn cast_mut_unchecked<T: UObjectLike>(&mut self) -> &mut T {
         unsafe { &mut *(self as *mut Self as *mut T) }
     }
 
-    fn from_uobject(object: Ptr<UObject<PEIDX>>) -> Option<Ptr<Self>> {
+    fn from_uobject(object: Ptr<UObject>) -> Option<Ptr<Self>> {
         if object.class.is(Self::static_class()) {
             Some(Ptr(object.0.cast::<Self>()))
         } else {
@@ -147,14 +155,14 @@ unsafe impl<const PEIDX: usize, O: UObjectLike<PEIDX>> UObjectExt<PEIDX> for O {
         }
     }
 
-    unsafe fn from_uobject_unchecked(object: Ptr<UObject<PEIDX>>) -> Ptr<O> {
+    unsafe fn from_uobject_unchecked(object: Ptr<UObject>) -> Ptr<O> {
         Ptr(object.0.cast::<Self>())
     }
 
-    fn as_uobject(&self) -> Ptr<UObject<PEIDX>> {
+    fn as_uobject(&self) -> Ptr<UObject> {
         unsafe {
             Ptr(NonNull::new_unchecked(
-                (self as *const Self).cast::<UObject<PEIDX>>().cast_mut(),
+                (self as *const Self).cast::<UObject>().cast_mut(),
             ))
         }
     }
@@ -162,20 +170,20 @@ unsafe impl<const PEIDX: usize, O: UObjectLike<PEIDX>> UObjectExt<PEIDX> for O {
 
 // PEIDX = Process Event Index
 #[repr(C)]
-pub struct UObject<const PEIDX: usize> {
+pub struct UObject {
     vmt: *const (),
     flags: ObjectFlags,
     index: u32,
-    class: Ptr<UClass<PEIDX>>,
+    class: Ptr<UClass>,
     name: FName,
     outer: Option<Ptr<Self>>,
 }
-assert_size!(UObject<0>, 0x28);
+assert_size!(UObject, 0x28);
 
-unsafe impl<const PEIDX: usize> Send for UObject<PEIDX> {}
-unsafe impl<const PEIDX: usize> Sync for UObject<PEIDX> {}
+unsafe impl Send for UObject {}
+unsafe impl Sync for UObject {}
 
-impl<const PEIDX: usize> UObject<PEIDX> {
+impl UObject {
     #[inline]
     pub fn get_by_fqn(hash: HashedFqn) -> Option<Ptr<Self>> {
         GlobalContext::get()
@@ -199,7 +207,7 @@ impl<const PEIDX: usize> UObject<PEIDX> {
     }
 
     #[inline]
-    pub fn class(&self) -> Ptr<UClass<PEIDX>> {
+    pub fn class(&self) -> Ptr<UClass> {
         self.class
     }
 
@@ -217,11 +225,16 @@ impl<const PEIDX: usize> UObject<PEIDX> {
     }
 
     /// # Safety
-    /// * Process event function index (`PEIDX`) was set correctly and object has a valid VMT pointer.
-    pub unsafe fn process_event<Args>(&mut self, function: Ptr<Self>, args: *mut Args) {
+    /// * Process event function `index` was set correctly and object has a valid VMT pointer.
+    pub unsafe fn process_event<Args>(
+        &mut self,
+        index: usize,
+        function: Ptr<Self>,
+        args: *mut Args,
+    ) {
         self.vmt
             .cast::<extern "C" fn(&mut Self, Ptr<Self>, *mut Args)>()
-            .add(PEIDX)
+            .add(index)
             .read()(self, function, args);
     }
 }
