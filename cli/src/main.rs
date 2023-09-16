@@ -10,7 +10,10 @@ use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
-use uedumper::{codegen::generate_rust_sdk, Config, DumperOptions, External};
+use uedumper::{
+    codegen::{Codegen, RustCodegen, RustOptions},
+    Config, DumperOptions, External,
+};
 
 /// Dumpes unreal engine SDK externally by accessing game memory through WinAPI.
 #[derive(Parser)]
@@ -19,27 +22,39 @@ struct Args {
     /// process id of the game
     #[clap(short = 'p', long = "process-id")]
     pid: Option<u32>,
+
     /// FNamePool offset
     #[clap(short = 'N', long)]
     names: Option<String>,
+
     /// TUObjectArray offset
     #[clap(short = 'O', long)]
     objects: Option<String>,
+
     /// specifies packages to merge together in format `target:consumer`
-    #[clap(short = 'm', long)]
+    #[clap(short = 'M', long)]
     merge: Vec<String>,
+
     /// do not write generated SDK to the disk
     #[clap(short = 'd', long = "dry-run")]
     dry: bool,
+
+    /// use glam structures instead of auto-generated
+    #[clap(short = 'm', long)]
+    glam: bool,
+
     /// do not try to eliminate dependency cycles
     #[clap(short = 'b', long)]
     allow_cycles: bool,
+
     /// generate dot file with dependency graph
     #[clap(short = 'g', long)]
     dot: Option<String>,
+
     /// output folder for the generated SDK
     #[clap(short = 'o', long)]
     output: Option<String>,
+
     /// config file path
     #[clap(short = 'c', long)]
     config: Option<String>,
@@ -156,7 +171,14 @@ fn main() -> Result<()> {
 
     if !args.dry {
         let start = Instant::now();
-        generate_rust_sdk(args.output.unwrap_or("usdk".into()), &sdk)?;
+
+        let options = RustOptions {
+            path: args.output.unwrap_or("usdk".into()).into(),
+            glam: args.glam,
+        };
+        let codegen = RustCodegen::new(&sdk, &options)?;
+        codegen.generate()?;
+
         info!("Sdk generation finished in {:.2?}", start.elapsed());
     }
 

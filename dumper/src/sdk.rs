@@ -12,10 +12,10 @@ use std::{
 };
 use ucore::Fqn;
 
-/// TODO: Someone please educate me on weak pointers.
-/// I can only assume that in this file, I would mostly want to use Weak instead of Rc pointers,
-/// but they are not very convenient to work with and I don't know if
-/// there is currently any drawbacks due to only using Rc.
+// TODO: Someone please educate me on weak pointers.
+// I can only assume that in this file, I would mostly want to use Weak instead of Rc pointers,
+// but they are not very convenient to work with and I don't know if
+// there is currently any drawbacks due to only using Rc.
 
 #[derive(Default)]
 pub struct Sdk {

@@ -2,7 +2,8 @@ use crate::{HashedFqn, Ptr, UObject};
 use once_cell::sync::Lazy;
 use std::{cell::UnsafeCell, collections::HashMap};
 
-pub unsafe trait Cache {
+/// Trait for cache system
+pub trait Cache {
     fn lookup(&self, hfqn: &HashedFqn) -> Ptr<UObject>;
     fn flush(&self);
 }
@@ -12,7 +13,7 @@ pub struct RacyCache(UnsafeCell<HashMap<HashedFqn, Ptr<UObject>>>);
 unsafe impl Send for RacyCache {}
 unsafe impl Sync for RacyCache {}
 
-unsafe impl Cache for RacyCache {
+impl Cache for RacyCache {
     fn lookup(&self, hfqn: &HashedFqn) -> Ptr<UObject> {
         unsafe {
             let map = self.0.get();
@@ -33,4 +34,4 @@ unsafe impl Cache for RacyCache {
 
 // TODO: Add mutex cache
 // #[cfg(feature = "racy")]
-pub const DEFAULT_CACHE: Lazy<RacyCache> = Lazy::new(|| RacyCache(UnsafeCell::default()));
+pub static DEFAULT_CACHE: Lazy<RacyCache> = Lazy::new(|| RacyCache(UnsafeCell::default()));

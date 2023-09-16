@@ -10,7 +10,19 @@ use std::{
 };
 
 pub mod codegen {
+    use crate::sdk::Sdk;
+
+    pub trait Codegen<'data> {
+        type Options;
+
+        fn new(sdk: &'data Sdk, options: &'data Self::Options) -> Result<Self>
+        where
+            Self: Sized;
+        fn generate(&self) -> Result<()>;
+    }
+
     mod rust;
+    use anyhow::Result;
     pub use rust::*;
 }
 
