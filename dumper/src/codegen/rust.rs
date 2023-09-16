@@ -36,8 +36,14 @@ pub fn generate_rust_sdk(path: impl AsRef<Path>, sdk: &Sdk) -> Result<()> {
 
     writeln!(
         &mut workspace,
-        "[workspace.dependencies]\nucore = {{ path = \"../ucore\" }}\nmemflex = \"0.7.0\""
+        r#"[workspace.dependencies]
+ucore = {{ path = "../ucore" }}
+uproxy = {{ path = "uproxy" }}
+memflex = "*"
+"#
     )?;
+
+    generate_proxy(&path)?;
 
     for pkg in sdk.packages.node_weights() {
         writeln!(
@@ -75,6 +81,42 @@ path = "lib.rs"
     Ok(())
 }
 
+fn generate_proxy(workspace: &Path) -> Result<()> {
+    let proxy = workspace.join("uproxy");
+    fs::create_dir_all(&proxy)?;
+
+    let cargo = proxy.join("Cargo.toml");
+    let lib = proxy.join("lib.rs");
+
+    const CARGO: &str = r#"[package]
+name = "uproxy"
+version.workspace = true
+edition.workspace = true  
+"#;
+
+    let mut cargo = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(cargo)?;
+    cargo.write_all(CARGO.as_bytes())?;
+
+    let mut lib = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(lib)?;
+
+    let config = &State::get().config;
+    writeln!(
+        lib,
+        "pub const PROCESS_EVENT_INDEX: usize = {:#X};",
+        config.process_event
+    )?;
+
+    Ok(())
+}
+
 fn generate_package(pkg: &Package, crates: &Path, sdk: &Sdk) -> Result<()> {
     let folder = crates.join(&*pkg.ident);
     fs::create_dir_all(&folder)?;
@@ -93,10 +135,9 @@ fn generate_package(pkg: &Package, crates: &Path, sdk: &Sdk) -> Result<()> {
     dead_code
 )]
 
-use ucore::{Ptr, TArray, TSet, TMap, FString, FName, SyncLazy, impl_uobject_like, impl_process_event_fns};
+use ucore::{UObject, Ptr, TArray, TSet, TMap, FString, FName, SyncLazy, impl_uobject_like, impl_process_event_fns};
 use std::{ptr::NonNull, mem::zeroed};
-
-type UObject = ucore::UObject<%>;
+use uproxy::PROCESS_EVENT_INDEX;
 
 "#;
 
@@ -141,7 +182,11 @@ path = "%.rs"
 
     writeln!(
         &mut cargo,
-        "[dependencies]\nucore.workspace = true\nmemflex.workspace = true\n"
+        r#"[dependencies]
+memflex.workspace = true
+uproxy.workspace = true
+ucore.workspace = true
+"#
     )?;
 
     for dep in sdk
@@ -355,8 +400,6 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
         )?;
     }
 
-    let config = &State::get().config;
-
     writeln!(w, "    }}\n}}\n")?;
     if *is_uobject {
         writeln!(w, "impl_uobject_like!({ident}, \"{fqn}\");\n",)?;
@@ -376,8 +419,7 @@ fn generate_struct(w: &mut dyn WriteIo, ustruct: &Struct, sdk: &Sdk) -> Result<(
 
         writeln!(
             w,
-            "impl_process_event_fns! {{\n    [{ident}, {:#X}]\n",
-            config.process_event
+            "impl_process_event_fns! {{\n    [{ident}, PROCESS_EVENT_INDEX]\n",
         )?;
 
         let mut funcd = NameDedup::default();
