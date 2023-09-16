@@ -172,6 +172,13 @@ impl Field {
             Field::Bitfields(group) => group.offset,
         }
     }
+
+    pub fn unwrap_ref_prop_opts(&self) -> &FieldOptions {
+        match self {
+            Field::Property { options, .. } => options,
+            Field::Bitfields(_) => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug)]

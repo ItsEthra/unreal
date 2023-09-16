@@ -15,6 +15,7 @@ use std::{
     hash::Hasher,
     io::{BufWriter, Write as WriteIo},
     iter::successors,
+    mem::size_of,
     path::{Path, PathBuf},
 };
 use ucore::fqn;
@@ -53,17 +54,22 @@ impl<'a> Codegen<'a> for RustCodegen<'a> {
         let mut lib = BufWriter::new(opts.open(path.join("lib.rs"))?);
 
         let mut workspace = BufWriter::new(opts.open(path.join("Cargo.toml"))?);
-        writeln!(&mut workspace, "{}", include_str!("workspace.toml"))?;
+        writeln!(workspace, "{}", include_str!("workspace.toml"))?;
 
         writeln!(
-            &mut workspace,
+            workspace,
             r#"[workspace.dependencies]
 ucore = {{ path = "../ucore" }}
 uproxy = {{ path = "uproxy" }}
-memflex = "*"
-"#
+
+memflex = "*""#
         )?;
 
+        if self.options.glam {
+            writeln!(workspace, r#"glam = "*""#)?;
+        }
+
+        writeln!(workspace)?;
         self.generate_proxy()?;
 
         for pkg in sdk.packages.node_weights() {
@@ -284,6 +290,10 @@ ucore.workspace = true
             return Ok(());
         }
 
+        if self.generate_glam(w, ustruct)? {
+            return Ok(());
+        }
+
         writeln!(w, "memflex::makestruct! {{")?;
         writeln!(
             w,
@@ -463,6 +473,88 @@ ucore.workspace = true
         Ok(())
     }
 
+    #[rustfmt::skip]
+    fn generate_glam(&self, w: &mut dyn WriteIo, ustruct: &Struct) -> Result<bool> {
+        let wide = self.sdk.lookup(&fqn!(CoreUObject.Vector)).unwrap().ptr.layout().size == size_of::<f64>() * 3;
+
+        macro_rules! reexport {
+            ($text:expr) => {{
+                writeln!(w, "pub use glam::{};", $text)?;
+                return Ok(true);
+            }};
+        }
+
+        if ustruct.fqn == fqn!(CoreUObject.Vector) {
+            match wide {
+                true => reexport!("DVec3"),
+                false => reexport!("Vec3"),
+            }
+        }
+        else if ustruct.fqn == fqn!(CoreUObject.Vector2) {
+            match wide {
+                true => reexport!("DVec2"),
+                false => reexport!("Vec2"),
+            }
+        }
+        else if ustruct.fqn == fqn!(CoreUObject.Vector3) {
+            match wide {
+                true => reexport!("DVec3"),
+                false => reexport!("Vec3"),
+            }
+        }
+        else if ustruct.fqn == fqn!(CoreUObject.Vector4) {
+            match wide {
+                true => reexport!("DVec4"),
+                false => reexport!("Vec4"),
+            }
+        }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix) {
+            match wide {
+                true => reexport!("DMat4"),
+                false => reexport!("Mat4"),
+            }
+        }
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix2) {
+            match wide {
+                true => reexport!("DMat2"),
+                false => reexport!("Mat2"),
+            }
+        }
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix3) {
+            match wide {
+                true => reexport!("DMat3"),
+                false => reexport!("Mat3"),
+            }
+        }
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix4) {
+            match wide {
+                true => reexport!("DMat4"),
+                false => reexport!("Mat4"),
+            }
+        }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Vector2d) { reexport!("DVec2") }
+        else if ustruct.fqn == fqn!(CoreUObject.Vector2f) { reexport!("Vec2") }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Vector3d) { reexport!("DVec3") }
+        else if ustruct.fqn == fqn!(CoreUObject.Vector3f) { reexport!("Vec3") }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Vector4d) { reexport!("DVec4") }
+        else if ustruct.fqn == fqn!(CoreUObject.Vector4f) { reexport!("Vec4") }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix2d) { reexport!("DMat2") }
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix2f) { reexport!("Mat2") }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix3d) { reexport!("DMat3") }
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix3f) { reexport!("Mat3") }
+
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix4d) { reexport!("DMat4") }
+        else if ustruct.fqn == fqn!(CoreUObject.Matrix4f) { reexport!("Mat4") }
+
+        return Ok(false);
+    }
+
     fn write_function(
         &self,
         w: &mut dyn WriteIo,
@@ -567,6 +659,7 @@ ucore.workspace = true
 
         Ok(())
     }
+
     fn stringify_type(&self, kind: &PropertyKind, mode: PointerMode) -> Option<Cow<'static, str>> {
         let repr: Cow<str> = match kind {
             PropertyKind::Bool => "bool".into(),
