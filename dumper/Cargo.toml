@@ -13,3 +13,4 @@ bitflags = "2.4.0"
 log = "0.4.20"
 petgraph = "0.6.3"
 serde = { version = "1.0.185", features = ["derive"] }
+indicatif = "0.17.6"

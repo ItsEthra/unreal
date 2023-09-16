@@ -9,6 +9,7 @@ use crate::{
     State,
 };
 use anyhow::{bail, Result};
+use indicatif::ProgressBar;
 use log::info;
 use petgraph::graph::NodeIndex;
 use std::{
@@ -27,7 +28,8 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
     let start = Instant::now();
 
     let mut functions = vec![];
-    for object in objects {
+    let progress = ProgressBar::new(objects.len() as _);
+    for (i, object) in objects.iter().enumerate() {
         let Some(outer) = get_outermost_object(*object)? else {
             continue;
         };
@@ -36,21 +38,26 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
         let outer_name = sanitize_ident(strip_package_name(outer.name().get()?));
 
         let object = if object.is_a(fqn!(CoreUObject.Enum))? {
+            progress.inc(1);
             Object::Enum(index_enum(object.cast())?)
         } else if object.is_a(fqn!(CoreUObject.ScriptStruct))?
             || object.is_a(fqn!(CoreUObject.Class))?
         {
             let key = sdk.retrieve_key(&outer_name);
             let foreign = foreign_map.entry(key).or_default();
+            progress.inc(1);
             Object::Struct(index_struct(object.cast(), foreign)?)
         } else if object.is_a(fqn!(CoreUObject.Function))? {
             functions.push(object);
+            progress.inc(1);
             continue;
         } else {
+            progress.inc(1);
             continue;
         };
         sdk.add(&outer_name, object);
     }
+    progress.finish_and_clear();
     info!("Found {} packages", sdk.packages.node_count());
 
     // Functions are processed after all structures in order to avoid issues
