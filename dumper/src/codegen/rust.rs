@@ -161,35 +161,37 @@ glam.workspace = true
         if self.options.glam {
             let reexports = if wide {
                 r#"pub use glam::{
-    DVec2 as FVector2,
-    DVec2 as FVector2d,
+    DVec2 as FVector2D,
     Vec2 as FVector2f,
+
     DVec3 as FVector,
-    DVec3 as FVector3,
     DVec3 as FVector3d,
     Vec3 as FVector3f,
+
     DVec4 as FVector4,
     DVec4 as FVector4d,
     Vec4 as FVector4f,
+
     DMat4 as FMatrix,
-    Mat4 as FMatrix44f,
     DMat4 as FMatrix44d,
+    Mat4 as FMatrix44f,
 };"#
             } else {
                 r#"pub use glam::{
-    Vec2 as FVector2,
-    DVec2 as FVector2d,
+    DVec2 as FVector2D,
     Vec2 as FVector2f,
+
     Vec3 as FVector,
-    DVec3 as FVector3,
     DVec3 as FVector3d,
     Vec3 as FVector3f,
+
     Vec4 as FVector4,
     DVec4 as FVector4d,
     Vec4 as FVector4f,
+
     Mat4 as FMatrix,
-    Mat4 as FMatrix44f,
     DMat4 as FMatrix44d,
+    Mat4 as FMatrix44f,
 };"#
             };
 
@@ -219,7 +221,6 @@ glam.workspace = true
 
 use ucore::{UObject, Ptr, TArray, TSet, TMap, FString, FName, SyncLazy, impl_uobject_like, impl_process_event_fns};
 use std::{ptr::NonNull, mem::zeroed};
-use uproxy::PROCESS_EVENT_INDEX;
 
 "#;
 
@@ -344,9 +345,9 @@ ucore.workspace = true"#
             return Ok(());
         }
 
-        // if self.skip_glam(ustruct) {
-        //     return Ok(());
-        // }
+        if self.skip_glam(ustruct) {
+            return Ok(());
+        }
 
         writeln!(w, "memflex::makestruct! {{")?;
         writeln!(
@@ -509,7 +510,7 @@ ucore.workspace = true"#
 
             writeln!(
                 w,
-                "impl_process_event_fns! {{\n    [{ident}, PROCESS_EVENT_INDEX]\n",
+                "impl_process_event_fns! {{\n    [{ident}, uproxy::PROCESS_EVENT_INDEX]\n",
             )?;
 
             let mut funcd = NameDedup::default();
@@ -528,31 +529,30 @@ ucore.workspace = true"#
         Ok(())
     }
 
-    // fn skip_glam(&self, ustruct: &Struct) -> bool {
-    //     if !self.options.glam {
-    //         return false;
-    //     }
+    fn skip_glam(&self, ustruct: &Struct) -> bool {
+        if !self.options.glam {
+            return false;
+        }
 
-    //     let skip = [
-    //         fqn!(CoreUObject.Matrix),
-    //         fqn!(CoreUObject.Matrix44d),
-    //         fqn!(CoreUObject.Matrix44f),
-    //         fqn!(CoreUObject.Vector),
-    //         fqn!(CoreUObject.Vector3),
-    //         fqn!(CoreUObject.Vector2),
-    //         fqn!(CoreUObject.Vector4),
-    //         fqn!(CoreUObject.Vector2d),
-    //         fqn!(CoreUObject.Vector2f),
-    //         fqn!(CoreUObject.Vector3d),
-    //         fqn!(CoreUObject.Vector3f),
-    //         fqn!(CoreUObject.Vector4d),
-    //         fqn!(CoreUObject.Vector4f),
-    //         fqn!(CoreUObject.Plane),
-    //         fqn!(CoreUObject.Plane4d),
-    //         fqn!(CoreUObject.Plane4f),
-    //     ];
-    //     skip.contains(&ustruct.fqn)
-    // }
+        let skip = [
+            // Matrices
+            fqn!(CoreUObject.Matrix),
+            fqn!(CoreUObject.Matrix44d),
+            fqn!(CoreUObject.Matrix44f),
+            // 2d vectors
+            fqn!(CoreUObject.Vector2D),
+            fqn!(CoreUObject.Vector2f),
+            // 3d vectors
+            fqn!(CoreUObject.Vector),
+            fqn!(CoreUObject.Vector3d),
+            fqn!(CoreUObject.Vector3f),
+            // 4d vectors
+            fqn!(CoreUObject.Vector4),
+            fqn!(CoreUObject.Vector4d),
+            fqn!(CoreUObject.Vector4f),
+        ];
+        skip.contains(&ustruct.fqn)
+    }
 
     fn write_function(
         &self,
@@ -684,35 +684,43 @@ ucore.workspace = true"#
             PropertyKind::Inline(inner) => {
                 let object = self.sdk.lookup(inner).unwrap();
                 if self.options.glam {
-                    let inner = *inner;
-                    let proxy = if inner == fqn!(CoreUObject.Matrix) {
-                        "uproxy::FMatrix"
-                    } else if inner == fqn!(CoreUObject.Vector) {
-                        "uproxy::FVector"
-                    } else if inner == fqn!(CoreUObject.Vector3) {
-                        "uproxy::FVector3"
-                    } else if inner == fqn!(CoreUObject.Vector2) {
-                        "uproxy::FVector2"
-                    } else if inner == fqn!(CoreUObject.Vector4) {
-                        "uproxy::FVector4"
-                    } else if inner == fqn!(CoreUObject.Vector2d) {
-                        "uproxy::FVector2d"
-                    } else if inner == fqn!(CoreUObject.Vector2f) {
-                        "uproxy::FVector2f"
-                    } else if inner == fqn!(CoreUObject.Vector3d) {
-                        "uproxy::FVector3d"
-                    } else if inner == fqn!(CoreUObject.Vector3f) {
-                        "uproxy::FVector3f"
-                    } else if inner == fqn!(CoreUObject.Vector4d) {
-                        "uproxy::FVector4d"
-                    } else if inner == fqn!(CoreUObject.Vector4f) {
-                        "uproxy::FVector4f"
-                    } else {
-                        ""
-                    };
+                    macro_rules! alias {
+                        ($([$($fqn:tt)*], $proxy:ident),* $(,)?) => {
+                            $(
+                                if *inner == fqn!($($fqn)*) {
+                                    Some(concat!("uproxy::", stringify!($proxy)))
+                                }
+                            )else* else {
+                                None
+                            }
+                        };
+                    }
 
-                    if !proxy.is_empty() {
-                        return Some(proxy.into());
+                    #[rustfmt::skip]
+                    let proxy = alias!(
+                        // Matrices
+                        [CoreUObject.Matrix], FMatrix,
+                        [CoreUObject.Matrix44d], FMatrix44d,
+                        [CoreUObject.Matrix44f], FMatrix44f,
+                        // 2d vectors
+                        [CoreUObject.Vector2D], FVector2D,
+                        [CoreUObject.Vector2f], FVector2f,
+                        // 3d vectors
+                        [CoreUObject.Vector], FVector,
+                        [CoreUObject.Vector3d], FVector3d,
+                        [CoreUObject.Vector3f], FVector3f,
+                        // 4d vectors
+                        [CoreUObject.Vector4], FVector4,
+                        [CoreUObject.Vector4d], FVector4d,
+                        [CoreUObject.Vector4f], FVector4f,
+                        // planes
+                        [CoreUObject.Plane], FVector4,
+                        [CoreUObject.Plane4d], FVector4d,
+                        [CoreUObject.Plane4f], FVector4f,
+                    );
+
+                    if proxy.is_some() {
+                        return proxy.map(Into::into);
                     }
                 }
 
