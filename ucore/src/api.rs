@@ -114,10 +114,17 @@ pub struct FString {
     data: TArray<u16>,
 }
 
-impl From<String> for FString {
-    fn from(value: String) -> Self {
+impl FString {
+    #[inline]
+    pub fn into_array(self) -> TArray<u16> {
+        self.data
+    }
+}
+
+impl<T: Into<String>> From<T> for FString {
+    fn from(value: T) -> Self {
         Self {
-            data: TArray::from(value.encode_utf16().collect::<Vec<_>>()),
+            data: TArray::from(value.into().encode_utf16().collect::<Vec<_>>()),
         }
     }
 }
@@ -155,10 +162,11 @@ impl DerefMut for FString {
     }
 }
 
-impl PartialEq<str> for FString {
-    fn eq(&self, other: &str) -> bool {
-        self.data.len() == other.len()
+impl<T: AsRef<str>> PartialEq<T> for FString {
+    fn eq(&self, other: &T) -> bool {
+        self.data.len() == other.as_ref().len()
             && other
+                .as_ref()
                 .encode_utf16()
                 .zip(self.data.as_slice())
                 .all(|(a, b)| a == *b)
@@ -171,4 +179,19 @@ pub struct TSet<T>([u8; 0x50], PhantomData<T>);
 #[repr(C)]
 pub struct TMap<K, V> {
     data: TSet<(K, V)>,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::FString;
+
+    #[test]
+    fn test_string() {
+        let first: FString = "Foo".into();
+        let second = first.clone();
+        assert_ne!(first.as_ptr(), second.as_ptr());
+        assert_eq!(second, "Foo");
+        drop(second);
+        assert_eq!(first, "Foo");
+    }
 }
