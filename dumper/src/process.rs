@@ -29,7 +29,7 @@ pub(crate) fn process(objects: &[UObjectPtr]) -> Result<Sdk> {
 
     let mut functions = vec![];
     let progress = ProgressBar::new(objects.len() as _);
-    for object in objects.iter().enumerate() {
+    for object in objects.iter() {
         let Some(outer) = get_outermost_object(*object)? else {
             continue;
         };

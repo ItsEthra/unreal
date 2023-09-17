@@ -48,4 +48,4 @@ impl Cache<HashedFqn> for UObjectCache {
     }
 }
 
-pub(crate) static DEFAULT_CACHE: Lazy<UObjectCache> = Lazy::new(|| UObjectCache::default());
+pub(crate) static DEFAULT_CACHE: Lazy<UObjectCache> = Lazy::new(UObjectCache::default);

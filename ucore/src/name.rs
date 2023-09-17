@@ -206,7 +206,7 @@ impl FNamePool {
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct FName {
-    pub index: FNameEntryId,
+    index: FNameEntryId,
     number: u32,
 }
 
@@ -225,6 +225,11 @@ impl From<FNameEntryId> for FName {
 }
 
 impl FName {
+    #[inline]
+    pub fn index(&self) -> FNameEntryId {
+        self.index
+    }
+
     pub fn lookup(name: &str) -> Option<FName> {
         let mut hasher = XxHash64::default();
         hasher.write(name.as_bytes());
@@ -240,8 +245,7 @@ impl FName {
         let entry: FNameEntryId = GlobalContext::get()
             .name_pool()
             .iter()
-            .find_map(|(entry, handle)| (entry == *name).then_some(handle))
-            .map(Into::into)?;
+            .find_map(|(entry, handle)| (entry == *name).then(|| handle.into()))?;
         let name: FName = entry.into();
         lock.insert(result, name);
 
@@ -258,7 +262,7 @@ use parking_lot::Mutex;
 #[cfg(feature = "spin")]
 use spin::Mutex;
 
-static DEFAULT_NAME_CACHE: Lazy<Mutex<HashMap<u64, FName>>> = Lazy::new(|| Default::default());
+static DEFAULT_NAME_CACHE: Lazy<Mutex<HashMap<u64, FName>>> = Lazy::new(Default::default);
 
 impl Display for FName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

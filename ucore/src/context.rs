@@ -1,6 +1,5 @@
-#![allow(dead_code)]
-
 use crate::{FChunkedFixedUObjectArray, FNamePool, Ptr};
+use once_cell::sync::OnceCell;
 use std::ptr::{null_mut, NonNull};
 
 pub struct GlobalContext {
@@ -13,7 +12,7 @@ pub struct GlobalContext {
 unsafe impl Sync for GlobalContext {}
 unsafe impl Send for GlobalContext {}
 
-static mut CONTEXT: Option<Box<GlobalContext>> = None;
+static CONTEXT: OnceCell<Box<GlobalContext>> = OnceCell::new();
 
 impl GlobalContext {
     pub fn new(names: *mut FNamePool, objects: *mut FChunkedFixedUObjectArray) -> Self {
@@ -36,23 +35,17 @@ impl GlobalContext {
     }
 
     pub fn init(self) -> &'static Self {
-        unsafe {
-            if CONTEXT.is_none() {
-                CONTEXT = Some(self.into());
-                CONTEXT.as_ref().unwrap()
-            } else {
-                panic!("GlobalContext was already initialized")
-            }
-        }
+        let result = CONTEXT.set(self.into());
+        assert!(result.is_ok(), "GlobalContext was already initialized");
+
+        CONTEXT.get().unwrap()
     }
 
     #[inline]
     pub fn get() -> &'static Self {
-        unsafe {
-            CONTEXT
-                .as_ref()
-                .expect("GlobalContext has not yet been initialized")
-        }
+        CONTEXT
+            .get()
+            .expect("GlobalContext has not yet been initialized")
     }
 
     pub fn name_pool(&self) -> &'static FNamePool {

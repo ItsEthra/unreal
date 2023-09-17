@@ -12,7 +12,7 @@ default = ["parking_lot"]
 
 [dependencies]
 bitflags = "2.4.0"
-once_cell = "1.18.0"
+once_cell = { version = "1.18.0", default-features = false }
 memflex = { version = "0.8.0", default-features = false }
 twox-hash = { version = "1.6.3", default-features = false }
 parking_lot = { version = "0.12.1", optional = true }

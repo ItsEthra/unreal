@@ -2,25 +2,11 @@ use std::{
     fmt::{self, Debug},
     hash::Hasher,
     marker::PhantomData,
+    mem::{transmute, MaybeUninit},
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
-
 use twox_hash::XxHash32;
-
-#[macro_export]
-macro_rules! assert_size {
-    ($target:path, $size:tt) => {
-        const _: () = if core::mem::size_of::<$target>() != $size {
-            panic!(concat!(
-                "Size assertion failed! sizeof(",
-                stringify!($target),
-                ") != ",
-                stringify!($size)
-            ))
-        };
-    };
-}
 
 pub struct Shrink<const SIZE: usize, T> {
     buf: [u8; SIZE],
@@ -37,7 +23,7 @@ impl<const SIZE: usize, T> Deref for Shrink<SIZE, T> {
 
 impl<const SIZE: usize, T> DerefMut for Shrink<SIZE, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.buf.as_mut_ptr().cast::<T>().as_mut().unwrap() }
+        unsafe { self.buf.as_mpmu().cast::<T>().as_mut().unwrap() }
     }
 }
 
@@ -193,5 +179,36 @@ impl fmt::Display for Fqn {
 impl fmt::Debug for Fqn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", &self.parts[..self.len])
+    }
+}
+
+pub trait AsMutPtrMaybeUninit {
+    type Target;
+
+    fn as_mpmu(&mut self) -> *mut MaybeUninit<Self::Target>;
+}
+
+impl<T> AsMutPtrMaybeUninit for T {
+    type Target = T;
+
+    #[inline]
+    fn as_mpmu(&mut self) -> *mut MaybeUninit<Self::Target> {
+        unsafe { transmute::<&mut T, &mut MaybeUninit<T>>(self) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::AsMutPtrMaybeUninit;
+    use std::mem::MaybeUninit;
+
+    #[test]
+    fn test_accept_ampmu() {
+        fn accept(_ptr: *mut MaybeUninit<u32>) {}
+
+        let mut value = 10;
+        accept(value.as_mpmu());
+        let mut uninit = MaybeUninit::uninit();
+        accept(&mut uninit);
     }
 }

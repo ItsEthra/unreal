@@ -711,7 +711,7 @@ ucore.workspace = true"#
                         ""
                     };
 
-                    if proxy != "" {
+                    if !proxy.is_empty() {
                         return Some(proxy.into());
                     }
                 }
